@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Actionable Tabs - Settings</title>
+   <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Actionable Tabs Settings</h1>
+      <p class="subtitle">Configure how the extension manages your tabs</p>
+    </header>
+
+    <main>
+      <section class="settings-group">
+        <h2>Automatic Tab Movement</h2>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="autoMove">
+            <span class="label-text">
+              <strong>Automatically move new tabs past pinned tabs</strong>
+              <small>New tabs will automatically be positioned after all pinned tabs</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="moveOnActivation">
+            <span class="label-text">
+              <strong>Move tab when activated</strong>
+              <small>When you switch to a tab, it will move to the first position after pinned tabs</small>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2>Notifications</h2>
+
+        <div class="setting-item">
+          <label>
+            <input type="checkbox" id="showNotifications">
+            <span class="label-text">
+              <strong>Show notifications</strong>
+              <small>Display notifications when tabs are moved or organized</small>
+            </span>
+          </label>
+        </div>
+      </section>
+
+      <section class="settings-group">
+        <h2>Information</h2>
+
+        <div class="info-panel">
+          <p><strong>Current pinned tabs:</strong> <span id="pinnedCount">Loading...</span></p>
+          <p><strong>Total tabs:</strong> <span id="totalCount">Loading...</span></p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="button-group">
+        <button id="saveButton" class="primary-button">Save Settings</button>
+        <button id="resetButton" class="secondary-button">Reset to Defaults</button>
+      </div>
+      <div id="statusMessage" class="status-message"></div>
+    </footer>
+  </div>
+
+   <script src="settings.js"></script>
+</body>
+</html>

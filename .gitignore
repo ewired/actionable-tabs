@@ -1,0 +1,25 @@
+# Development files
+*.log
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Build artifacts
+*.zip
+dist/
+build/
+
+# Node modules (if added later)
+node_modules/
+
+# Extension packaging
+web-ext-artifacts/
