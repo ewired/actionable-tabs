@@ -1,122 +1,137 @@
-// DOM elements
-const autoMoveCheckbox = document.getElementById('autoMove');
-const moveOnActivationCheckbox = document.getElementById('moveOnActivation');
-const showNotificationsCheckbox = document.getElementById('showNotifications');
-const saveButton = document.getElementById('saveButton');
-const resetButton = document.getElementById('resetButton');
-const statusMessage = document.getElementById('statusMessage');
-const pinnedCountSpan = document.getElementById('pinnedCount');
-const totalCountSpan = document.getElementById('totalCount');
+/// <reference types="@types/webextension-polyfill" />
 
-// Default settings
-const DEFAULT_SETTINGS = {
-  autoMove: false,
-  moveOnActivation: false,
-  showNotifications: true
+// Browser compatibility shim
+if (typeof browser === "undefined") globalThis.browser = chrome;
+
+const DEFAULTS = {
+    cronSchedule: '*/30 * * * *',
+    queueMode: 'oldest-first',
+    moveCount: 1,
+    showNotifications: true,
+    lastMoveTime: null
 };
 
-// Load settings when page opens
-document.addEventListener('DOMContentLoaded', async () => {
-  await loadSettings();
-  await updateTabCounts();
-});
-
 /**
- * Load settings from storage and update UI
+ * @template {HTMLElement} T
+ * @overload
+ * @param {string} id
+ * @param {new () => T} type
+ * @returns {T}
  */
-async function loadSettings() {
-  try {
-    const settings = await chrome.storage.sync.get(DEFAULT_SETTINGS);
+/**
+ * @overload
+ * @param {string} id
+ * @returns {HTMLElement}
+ */
+/**
+ * @param {string} id
+ * @param {new () => HTMLElement} [type]
+ * @returns {HTMLElement}
+ */
+const $ = (id, type) => {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`Element ${id} not found`);
+    if (type && !(el instanceof type)) throw new Error(`Element ${id} is not of type ${type.name}`);
+    return el;
+};;
+
+const form = $('settings', HTMLFormElement);
+const msg = $('msg');
+const cronInput = $('cron', HTMLInputElement);
+const queueModeInput = $('queueMode', HTMLSelectElement);
+const countInput = $('count', HTMLInputElement);
+const notifyInput = $('notify', HTMLInputElement);
+const resetBtn = $('reset', HTMLButtonElement);
+const actionableEl = $('actionable');
+const pinnedEl = $('pinned');
+const totalEl = $('total');
+const lastEl = $('last');
+const nextEl = $('next');
+
+// Load and display settings
+async function load() {
+    const s = /** @type {typeof DEFAULTS} */ (await browser.storage.sync.get(DEFAULTS));
+    cronInput.value = s.cronSchedule;
+    queueModeInput.value = s.queueMode;
+    countInput.value = s.moveCount.toString();
+    notifyInput.checked = s.showNotifications;
+
+    // Load status
+    const tabs = await browser.tabs.query({ currentWindow: true });
     
-    autoMoveCheckbox.checked = settings.autoMove;
-    moveOnActivationCheckbox.checked = settings.moveOnActivation;
-    showNotificationsCheckbox.checked = settings.showNotifications;
+    // Count actionable tabs by checking session values
+    let actionableCount = 0;
+    for (const tab of tabs) {
+        if (!tab.id) continue;
+        const actionableData = await browser.sessions.getTabValue(tab.id, 'actionable');
+        if (actionableData) {
+            actionableCount++;
+        }
+    }
     
-    console.log('Settings loaded:', settings);
-  } catch (error) {
-    showStatus('Error loading settings: ' + error.message, 'error');
-    console.error('Error loading settings:', error);
-  }
+    const alarm = /** @type {any} */ (await browser.alarms.get('moveActionableTabs'));
+
+    actionableEl.textContent = String(actionableCount);
+    pinnedEl.textContent = String(tabs.filter(t => t.pinned).length);
+    totalEl.textContent = String(tabs.length);
+    lastEl.textContent = s.lastMoveTime ? relTime(new Date(s.lastMoveTime)) : 'Never';
+    nextEl.textContent = alarm?.scheduledTime ? relTime(new Date(alarm.scheduledTime)) : 'Unknown';
 }
 
-/**
- * Save settings to storage
- */
-async function saveSettings() {
-  const settings = {
-    autoMove: autoMoveCheckbox.checked,
-    moveOnActivation: moveOnActivationCheckbox.checked,
-    showNotifications: showNotificationsCheckbox.checked
-  };
-  
-  try {
-    await chrome.storage.sync.set(settings);
-    showStatus('Settings saved successfully!', 'success');
-    console.log('Settings saved:', settings);
-    
-    // Update tab counts after save
-    await updateTabCounts();
-  } catch (error) {
-    showStatus('Error saving settings: ' + error.message, 'error');
-    console.error('Error saving settings:', error);
-  }
+/** @param {Event} e */
+async function save(e) {
+    e.preventDefault();
+
+    const settings = {
+        cronSchedule: cronInput.value.trim(),
+        queueMode: queueModeInput.value,
+        moveCount: parseInt(countInput.value),
+        showNotifications: notifyInput.checked
+    };
+
+    if (!settings.cronSchedule) return showMsg('Cron required', true);
+    if (settings.moveCount < 1 || settings.moveCount > 10) return showMsg('Count: 1-10', true);
+
+    await browser.storage.sync.set(settings);
+    showMsg('Saved');
+    load();
 }
 
-/**
- * Reset settings to defaults
- */
-async function resetSettings() {
-  try {
-    await chrome.storage.sync.set(DEFAULT_SETTINGS);
-    await loadSettings();
-    showStatus('Settings reset to defaults', 'success');
-    console.log('Settings reset to defaults');
-  } catch (error) {
-    showStatus('Error resetting settings: ' + error.message, 'error');
-    console.error('Error resetting settings:', error);
-  }
+// Reset to defaults
+async function reset() {
+    await browser.storage.sync.set(DEFAULTS);
+    showMsg('Reset');
+    load();
 }
 
-/**
- * Update the displayed tab counts
- */
-async function updateTabCounts() {
-  try {
-    const allTabs = await chrome.tabs.query({ currentWindow: true });
-    const pinnedTabs = allTabs.filter(tab => tab.pinned);
-    
-    pinnedCountSpan.textContent = pinnedTabs.length;
-    totalCountSpan.textContent = allTabs.length;
-  } catch (error) {
-    pinnedCountSpan.textContent = 'Error';
-    totalCountSpan.textContent = 'Error';
-    console.error('Error updating tab counts:', error);
-  }
+/** @param {string} text @param {boolean} [error=false] */
+function showMsg(text, error = false) {
+    msg.textContent = text;
+    msg.className = error ? 'error' : '';
+    setTimeout(() => msg.textContent = '', 3000);
 }
 
-/**
- * Show status message to user
- * @param {string} message - The message to display
- * @param {string} type - 'success' or 'error'
- */
-function showStatus(message, type = 'success') {
-  statusMessage.textContent = message;
-  statusMessage.className = `status-message ${type}`;
-  
-  // Clear message after 3 seconds
-  setTimeout(() => {
-    statusMessage.textContent = '';
-    statusMessage.className = 'status-message';
-  }, 3000);
+/** @param {Date} d */
+function relTime(d) {
+    const m = Math.round((d.getTime() - new Date().getTime()) / 60000);
+    if (m < -60) return `${Math.round(-m / 60)}h ago`;
+    if (m < 0) return `${-m}m ago`;
+    if (m < 60) return `in ${m}m`;
+    return `in ${Math.round(m / 60)}h`;
 }
+
+
 
 // Event listeners
-saveButton.addEventListener('click', saveSettings);
-resetButton.addEventListener('click', resetSettings);
+form.addEventListener('submit', save);
+resetBtn.addEventListener('click', reset);
 
-// Auto-save on checkbox change (optional - can be removed if you want manual save only)
-[autoMoveCheckbox, moveOnActivationCheckbox, showNotificationsCheckbox].forEach(checkbox => {
-  checkbox.addEventListener('change', () => {
-    showStatus('Change detected - click Save to apply', 'info');
-  });
-});
+// Change detection
+cronInput.addEventListener('change', () => showMsg('Unsaved changes'));
+queueModeInput.addEventListener('change', () => showMsg('Unsaved changes'));
+countInput.addEventListener('change', () => showMsg('Unsaved changes'));
+notifyInput.addEventListener('change', () => showMsg('Unsaved changes'));
+
+// Initialize
+load();
+setInterval(load, 10000); // Refresh status every 10s

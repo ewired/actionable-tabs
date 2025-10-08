@@ -17,9 +17,11 @@ Thumbs.db
 *.zip
 dist/
 build/
+out/
 
 # Node modules (if added later)
 node_modules/
 
 # Extension packaging
 web-ext-artifacts/
+.env

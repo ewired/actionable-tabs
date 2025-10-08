@@ -1,0 +1,8 @@
+{
+   "dependencies": {
+      "@types/webextension-polyfill": "^0.12.4",
+      "cron-parser": "^5.4.0",
+      "typescript": "^5.0.0",
+      "webextension-polyfill": "^0.12.0"
+   }
+}
