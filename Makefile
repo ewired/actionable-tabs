@@ -6,8 +6,8 @@ web-ext-artifacts/webext.zip: out/settings/settings.html out/background.js out/m
 	bun x web-ext build -s ./out -n webext.zip -o
 
 web-ext-artifacts/source.zip: manifest.json background.js settings/settings.html settings/settings.js settings/settings.css icons/ Makefile
-		mkdir -p web-ext-artifacts
-		zip -r $@ $^
+	mkdir -p web-ext-artifacts
+	zip -r $@ $^
 
 out/manifest.json: manifest.json
 	cp manifest.json out/
