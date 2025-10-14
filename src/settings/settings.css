@@ -32,8 +32,12 @@ legend {
 
 label {
     display: block;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     font-weight: 500;
+}
+
+label + label {
+    margin-top: 5px;
 }
 
 

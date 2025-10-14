@@ -14,6 +14,25 @@
   <fieldset>
     <legend>Schedule</legend>
     <label>
+      Schedule Preset
+      <select id="cronPreset">
+        <option value="*/1 * * * *">Every minute</option>
+        <option value="*/5 * * * *">Every 5 minutes</option>
+        <option value="*/15 * * * *">Every 15 minutes</option>
+        <option value="*/30 * * * *">Every 30 minutes</option>
+        <option value="0 * * * *">Hourly</option>
+        <option value="0 */2 * * *">Every 2 hours</option>
+        <option value="0 */4 * * *">Every 4 hours</option>
+        <option value="0 */6 * * *">Every 6 hours</option>
+        <option value="0 0 * * *">Daily (midnight)</option>
+        <option value="0 12 * * *">Daily (noon)</option>
+        <option value="0 0 * * 0">Weekly (Sunday midnight)</option>
+        <option value="0 0 1 * *">Monthly (1st of month)</option>
+        <option value="custom">Custom</option>
+      </select>
+      <small>Choose a common schedule or enter custom cron below</small>
+    </label>
+    <label>
       Cron Expression
       <input type="text" id="cron" placeholder="*/30 * * * *" required>
       <small>*/15 * * * * = every 15min | 0 * * * * = hourly</small>

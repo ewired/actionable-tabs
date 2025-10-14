@@ -36,6 +36,7 @@ const queueModeInput = $('queueMode', HTMLSelectElement);
 const countInput = $('count', HTMLInputElement);
 const notifyInput = $('notify', HTMLInputElement);
 const resetBtn = $('reset', HTMLButtonElement);
+const cronPresetInput = $('cronPreset', HTMLSelectElement);
 const actionableEl = $('actionable');
 const pinnedEl = $('pinned');
 const totalEl = $('total');
@@ -46,6 +47,7 @@ const nextEl = $('next');
 async function load() {
     const s = /** @type {typeof DEFAULTS} */ (await browser.storage.sync.get(DEFAULTS));
     cronInput.value = s.cronSchedule;
+    updatePresetSelector(s.cronSchedule);
     queueModeInput.value = s.queueMode;
     countInput.value = s.moveCount.toString();
     notifyInput.checked = s.showNotifications;
@@ -114,14 +116,48 @@ function relTime(d) {
     return `in ${Math.round(m / 60)}h`;
 }
 
+/** @param {string} cronExpression */
+// Update preset selector based on cron expression
+function updatePresetSelector(cronExpression) {
+    const presets = [
+        '*/1 * * * *',
+        '*/5 * * * *',
+        '*/15 * * * *',
+        '*/30 * * * *',
+        '0 * * * *',
+        '0 */2 * * *',
+        '0 */4 * * *',
+        '0 */6 * * *',
+        '0 0 * * *',
+        '0 12 * * *',
+        '0 0 * * 0',
+        '0 0 1 * *'
+    ];
 
+    if (presets.includes(cronExpression)) {
+        cronPresetInput.value = cronExpression;
+    } else {
+        cronPresetInput.value = 'custom';
+    }
+}
 
 // Event listeners
 form.addEventListener('submit', save);
 resetBtn.addEventListener('click', reset);
 
+// Preset selector change handler
+cronPresetInput.addEventListener('change', () => {
+    if (cronPresetInput.value !== 'custom') {
+        cronInput.value = cronPresetInput.value;
+        showMsg('Unsaved changes');
+    }
+});
+
 // Change detection
-cronInput.addEventListener('change', () => showMsg('Unsaved changes'));
+cronInput.addEventListener('change', () => {
+    updatePresetSelector(cronInput.value.trim());
+    showMsg('Unsaved changes');
+});
 queueModeInput.addEventListener('change', () => showMsg('Unsaved changes'));
 countInput.addEventListener('change', () => showMsg('Unsaved changes'));
 notifyInput.addEventListener('change', () => showMsg('Unsaved changes'));
