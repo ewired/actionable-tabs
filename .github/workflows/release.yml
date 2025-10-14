@@ -1,0 +1,83 @@
+name: Release Extension
+
+on:
+    push:
+        branches: [main]
+        paths: ["manifest.json"]
+
+jobs:
+    detect-version-change:
+        runs-on: ubuntu-latest
+        outputs:
+            version-changed: ${{ steps.check.outputs.changed }}
+            new-version: ${{ steps.check.outputs.new-version }}
+            old-version: ${{ steps.check.outputs.old-version }}
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 2 # Get previous commit for comparison
+
+            - name: Check version change
+              id: check
+              run: |
+                  # Get current version
+                  NEW_VERSION=$(jq -r '.version' manifest.json)
+
+                  # Get previous version from the previous commit
+                  git checkout HEAD~1 -- manifest.json 2>/dev/null || echo "No previous commit"
+                  OLD_VERSION=$(jq -r '.version' manifest.json 2>/dev/null || echo "")
+
+                  # Restore current manifest
+                  git checkout HEAD -- manifest.json
+
+                  # Compare versions
+                  if [ "$NEW_VERSION" != "$OLD_VERSION" ] && [ -n "$OLD_VERSION" ]; then
+                    echo "changed=true" >> $GITHUB_OUTPUT
+                    echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
+                    echo "old-version=$OLD_VERSION" >> $GITHUB_OUTPUT
+                    echo "Version changed from $OLD_VERSION to $NEW_VERSION"
+                  else
+                    echo "changed=false" >> $GITHUB_OUTPUT
+                    echo "No version change detected"
+                  fi
+
+    build-and-sign:
+        needs: detect-version-change
+        if: needs.detect-version-change.outputs.version-changed == 'true'
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: latest
+
+            - name: Install dependencies
+              run: bun install
+
+            - name: Build and publish to AMO
+              env:
+                  JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
+                  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+              run: |
+                  make clean
+                  make sign
+
+            - name: Create release and upload assets
+              uses: softprops/action-gh-release@v2
+              with:
+                  tag_name: v${{ needs.detect-version-change.outputs.new-version }}
+                  name: Release v${{ needs.detect-version-change.outputs.new-version }}
+                  body: |
+                      ## Changes in v${{ needs.detect-version-change.outputs.new-version }}
+
+                      Version bumped from ${{ needs.detect-version-change.outputs.old-version }} to ${{ needs.detect-version-change.outputs.new-version }}.
+                  files: |
+                      web-ext-artifacts/*.xpi
+                  draft: false
+                  prerelease: false
