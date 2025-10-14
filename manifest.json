@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Actionable Tabs",
-    "version": "1.1.1",
+    "version": "1.2.0",
     "description": "Mark tabs as actionable and automatically bring them to the top on a schedule. Perfect for managing tasks, reminders, and important tabs.",
     "permissions": [
         "tabs",
