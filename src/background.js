@@ -192,6 +192,14 @@ browser.tabs.onCreated.addListener(async (tab) => {
 });
 
 /**
+ * Update icon state when a tab is updated (including reloads)
+ * Ensures the correct icon state is maintained after tab reloads
+ */
+browser.tabs.onUpdated.addListener(async (tabId) => {
+    await updateIconForTab(tabId);
+});
+
+/**
  * Schedule the next automatic move based on cron settings
  */
 async function scheduleNextMove() {
