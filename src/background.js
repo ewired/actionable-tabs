@@ -64,6 +64,12 @@ async function createContextMenus() {
         title: 'Settings',
         contexts: ['action']
     });
+
+    browser.contextMenus.create({
+        id: 'sponsor',
+        title: '❤️ Sponsor me',
+        contexts: ['action']
+    });
 }
 
 /**
@@ -76,6 +82,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
             break;
         case 'open-settings':
             browser.runtime.openOptionsPage();
+            break;
+        case 'sponsor':
+            browser.tabs.create({ url: 'https://github.com/sponsors/ewired' });
             break;
     }
 });
