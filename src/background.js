@@ -5,16 +5,15 @@ import { DEFAULTS } from './defaults.js';
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
-// Icon path constants for actionable states
 const ACTIONABLE_ICON_PATHS = {
-    16: 'icons/icon-on-32.png',  // Use 32px for 16px (better quality)
+    16: 'icons/icon-on-16.png',
     32: 'icons/icon-on-32.png',
     48: 'icons/icon-on-48.png',
     128: 'icons/icon-on-128.png'
 };
 
 const NON_ACTIONABLE_ICON_PATHS = {
-    16: 'icons/icon-off-32.png',  // Use 32px for 16px (better quality)
+    16: 'icons/icon-off-16.png',
     32: 'icons/icon-off-32.png',
     48: 'icons/icon-off-48.png',
     128: 'icons/icon-off-128.png'
