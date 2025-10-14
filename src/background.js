@@ -125,26 +125,22 @@ async function toggleActionableState(tab) {
  */
 async function updateIconForTab(tabId, isActionable = null) {
     try {
-        // If actionable state not provided, detect it from session data
         if (isActionable === null) {
             try {
                 const actionableData = await browser.sessions.getTabValue(tabId, 'actionable');
                 isActionable = !!actionableData;
             } catch (sessionError) {
-                // If session data isn't available, default to non-actionable
                 isActionable = false;
             }
         }
 
         const iconPaths = isActionable ? ACTIONABLE_ICON_PATHS : NON_ACTIONABLE_ICON_PATHS;
 
-        // Set the icon for the specific tab
         await browser.action.setIcon({
             tabId: tabId,
             path: iconPaths
         });
 
-        // Update title
         if (isActionable) {
             await browser.action.setTitle({ title: 'Actionable Tabs - This tab is actionable', tabId: tabId });
         } else {
@@ -168,14 +164,12 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
  */
 async function initializeIconForCurrentTab() {
     try {
-        // Get the current active tab in the current window
         const [activeTab] = await browser.tabs.query({
             active: true,
             currentWindow: true
         });
 
         if (activeTab && activeTab.id) {
-            // Check if the active tab is actionable and update icon accordingly
             await updateIconForTab(activeTab.id);
             console.log(`Initialized icon for active tab ${activeTab.id}`);
         } else {
@@ -193,8 +187,6 @@ async function initializeIconForCurrentTab() {
 browser.tabs.onCreated.addListener(async (tab) => {
     if (!tab.id) return;
 
-    // Check if the newly created tab is actionable
-    // New tabs won't be actionable by default, but we should still set the correct icon
     await updateIconForTab(tab.id);
     console.log(`Updated icon for newly created tab ${tab.id}`);
 });
@@ -208,10 +200,8 @@ async function scheduleNextMove() {
 
     const delayMinutes = parseCronToNextDelay(cronSchedule);
 
-    // Clear any existing alarm first
     await browser.alarms.clear('moveActionableTabs');
 
-    // Create one-time alarm (not periodic) - we'll reschedule after execution
     await browser.alarms.create('moveActionableTabs', {
         delayInMinutes: delayMinutes
     });
@@ -226,28 +216,22 @@ async function scheduleNextMove() {
  * @returns {number} Delay in minutes until next cron execution (minimum 1 minute)
  */
 function parseCronToNextDelay(cronSchedule) {
-    // Default fallback to 30 minutes if parsing fails
     const DEFAULT_DELAY_MINUTES = 30;
 
     try {
-        // Parse the cron expression with current time as reference
         const options = {
             currentDate: new Date(),
-            // Don't use strict mode to allow flexibility with 5-field expressions
             strict: false
         };
 
         const interval = CronExpressionParser.parse(cronSchedule, options);
 
-        // Get the next occurrence
         const nextDate = interval.next().toDate();
         const now = new Date();
 
-        // Calculate delay in milliseconds, then convert to minutes
         const delayMs = nextDate.getTime() - now.getTime();
         const delayMinutes = Math.ceil(delayMs / (1000 * 60));
 
-        // Ensure minimum delay of 1 minute
         const finalDelay = Math.max(1, delayMinutes);
 
         console.log(`Cron: "${cronSchedule}" - Next execution at ${nextDate.toISOString()} (in ${finalDelay} minutes)`);
@@ -277,19 +261,15 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
         const now = new Date();
         let missedCount = 0;
 
-        // Iterate through scheduled times from lastMoveTime until now
         while (true) {
             const nextDate = interval.next().toDate();
 
-            // If next scheduled time is in the future, we're done counting
             if (nextDate.getTime() > now.getTime()) {
                 break;
             }
 
             missedCount++;
 
-            // Safety check: prevent infinite loops (max 10000 iterations)
-            // At 1-minute intervals, this covers ~7 days
             if (missedCount > 10000) {
                 console.warn('Reached maximum iteration limit while calculating missed moves');
                 break;
@@ -311,7 +291,6 @@ async function checkForMissedMovesAndCatchUp() {
     const settings = await browser.storage.sync.get(DEFAULTS);
     const lastMoveTime = /** @type {number | null} */ (settings.lastMoveTime);
 
-    // If lastMoveTime is not set, this is likely first run or no moves have occurred yet
     if (!lastMoveTime) {
         console.log('No lastMoveTime found - skipping catch-up check');
         return;
@@ -326,10 +305,8 @@ async function checkForMissedMovesAndCatchUp() {
     if (missedMoves > 0) {
         console.log(`Found ${missedMoves} missed scheduled move(s) - executing catch-up`);
 
-        // Execute a single move to catch up
         await moveActionableTabsToTop();
 
-        // Update lastMoveTime to now after catching up
         await browser.storage.sync.set({ lastMoveTime: Date.now() });
 
         console.log(`Catch-up complete - brought ${missedMoves} missed move(s) current`);
@@ -353,7 +330,6 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 browser.alarms.onAlarm.addListener(async (alarm) => {
     if (alarm.name === 'moveActionableTabs') {
         await moveActionableTabsToTop();
-        // Reschedule the next execution based on current cron expression
         await scheduleNextMove();
     }
 });
@@ -416,7 +392,6 @@ async function moveActionableTabsToTop(isManual = false) {
     const settings = await browser.storage.sync.get(DEFAULTS);
     const queueMode = /** @type {string} */ (settings.queueMode || DEFAULTS.queueMode);
 
-    // Override moveCount to 1 when manually invoked, otherwise use configured setting
     const moveCount = isManual ? 1 : /** @type {number} */ (settings.moveCount || DEFAULTS.moveCount);
 
     const actionableTabsData = await getActionableTabsSorted(queueMode);
@@ -424,7 +399,6 @@ async function moveActionableTabsToTop(isManual = false) {
     if (actionableTabsData.length === 0) {
         console.log('No actionable tabs to move');
 
-        // Show notification when manually invoked
         if (isManual) {
             browser.notifications.create({
                 type: 'basic',
@@ -439,7 +413,6 @@ async function moveActionableTabsToTop(isManual = false) {
     const targetIndex = await getTargetIndexForActionableTabs();
     const tabsToMove = actionableTabsData.slice(0, moveCount);
 
-    // Track which tabs actually moved by comparing old vs new indices
     /** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
     const moveResults = [];
 
@@ -449,7 +422,6 @@ async function moveActionableTabsToTop(isManual = false) {
         const desiredIndex = targetIndex + i;
 
         try {
-            // browser.tabs.move returns the moved tab(s) with updated index
             const movedTab = await browser.tabs.move(tabId, { index: desiredIndex });
             const newIndex = Array.isArray(movedTab) ? movedTab[0].index : movedTab.index;
 
@@ -467,17 +439,13 @@ async function moveActionableTabsToTop(isManual = false) {
         }
     }
 
-    // Check if any tabs actually moved
     const anyTabMoved = moveResults.some(result => result.didMove);
 
-    // Always update lastMoveTime for automatic invocations
     if (!isManual) {
         await browser.storage.sync.set({ lastMoveTime: Date.now() });
     }
 
-    // Determine notification behavior
     if (isManual) {
-        // Manual invocation: always show notification with appropriate message
         if (anyTabMoved) {
             const firstResult = moveResults[0];
             const message = moveResults.length === 1
@@ -491,7 +459,6 @@ async function moveActionableTabsToTop(isManual = false) {
                 message: message
             });
         } else {
-            // Tab was already in position
             const firstResult = moveResults[0];
             browser.notifications.create({
                 type: 'basic',
@@ -501,7 +468,6 @@ async function moveActionableTabsToTop(isManual = false) {
             });
         }
     } else {
-        // Automatic invocation: only show notification if tabs actually moved
         const shouldShowNotification = anyTabMoved && (settings.showNotifications !== false);
 
         if (shouldShowNotification) {
@@ -564,7 +530,6 @@ async function clearAllActionableTabs() {
     }
 
     if (clearedCount > 0) {
-        // Show notification about the clear action
         browser.notifications.create({
             type: 'basic',
             iconUrl: 'icons/icon-off-48.png',

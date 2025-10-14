@@ -3,7 +3,6 @@
 import { DEFAULTS } from '../defaults.js';
 import { CronExpressionParser } from 'cron-parser';
 
-// Browser compatibility shim
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
 /**
@@ -41,10 +40,9 @@ const pinnedEl = $('pinned');
 const totalEl = $('total');
 const lastEl = $('last');
 const nextEl = $('next');
-const resetBtn = $('reset', HTMLButtonElement); // Keep for reset functionality
+const resetBtn = $('reset', HTMLButtonElement);
 const clearActionableBtn = $('clearActionable', HTMLButtonElement);
 
-// Load and display settings
 async function load() {
     const s = /** @type {typeof DEFAULTS} */ (await browser.storage.sync.get(DEFAULTS));
     cronInput.value = s.cronSchedule;
@@ -53,10 +51,8 @@ async function load() {
     countInput.value = s.moveCount.toString();
     notifyInput.checked = s.showNotifications;
 
-    // Load status
     const tabs = await browser.tabs.query({ currentWindow: true });
 
-    // Count actionable tabs by checking session values
     let actionableCount = 0;
     for (const tab of tabs) {
         if (!tab.id) continue;
@@ -77,24 +73,21 @@ async function load() {
 
 
 
-// Reset to defaults
 async function reset() {
     await browser.storage.sync.set(DEFAULTS);
     showMsg('Reset to defaults');
     load();
 }
 
-// Clear all actionable tabs
 async function clearAllActionableTabs() {
     try {
-        // Send message to background script to clear all actionable tabs
-        const response = /** @type {any} */ (await browser.runtime.sendMessage({ 
-            action: 'clearAllActionableTabs' 
+        const response = /** @type {any} */ (await browser.runtime.sendMessage({
+            action: 'clearAllActionableTabs'
         }));
-        
+
         if (response.success) {
             showMsg(`Cleared ${response.clearedCount} actionable tab(s)`);
-            load(); // Refresh the status display
+            load();
         } else {
             showMsg('Failed to clear actionable tabs', true);
         }
@@ -121,7 +114,6 @@ function relTime(d) {
 }
 
 /** @param {string} cronExpression */
-// Update preset selector based on cron expression
 function updatePresetSelector(cronExpression) {
     const presets = [
         '*/1 * * * *',
@@ -185,14 +177,12 @@ async function saveCron(cronExpression) {
     cronInput.classList.remove('invalid');
     await autoSave('cronSchedule', trimmedCron);
     updatePresetSelector(trimmedCron);
-    load(); // Refresh the status display to show updated next move time
+    load();
 }
 
-// Event listeners
 resetBtn.addEventListener('click', reset);
 clearActionableBtn.addEventListener('click', clearAllActionableTabs);
 
-// Preset selector change handler
 cronPresetInput.addEventListener('change', () => {
     if (cronPresetInput.value !== 'custom') {
         cronInput.value = cronPresetInput.value;
@@ -200,7 +190,6 @@ cronPresetInput.addEventListener('change', () => {
     }
 });
 
-// Cron input validation on input, save on blur or enter
 cronInput.addEventListener('input', () => {
     const value = cronInput.value.trim();
     if (value && isValidCron(value)) {
@@ -232,7 +221,6 @@ cronInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Auto-save other settings on change
 queueModeInput.addEventListener('change', () => {
     autoSave('queueMode', queueModeInput.value);
 });
@@ -243,7 +231,7 @@ countInput.addEventListener('change', () => {
         autoSave('moveCount', value);
     } else {
         showMsg('Count must be between 1-10', true);
-        countInput.value = '1'; // Reset to valid value
+        countInput.value = '1';
     }
 });
 
@@ -251,6 +239,5 @@ notifyInput.addEventListener('change', () => {
     autoSave('showNotifications', notifyInput.checked);
 });
 
-// Initialize
 load();
-setInterval(load, 10000); // Refresh status every 10s
+setInterval(load, 10000);
