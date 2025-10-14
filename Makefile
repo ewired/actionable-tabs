@@ -5,12 +5,12 @@ web-ext-artifacts/webext.zip: out/settings/settings.html out/background.js out/m
 	cp -r src/icons out/
 	bun x web-ext build -s ./out -n webext.zip -o
 
-web-ext-artifacts/source.zip: src/ Makefile package.json README.md tsconfig.json LICENSE
+web-ext-artifacts/source.zip: src/ manifest.json Makefile package.json README.md tsconfig.json LICENSE
 	mkdir -p web-ext-artifacts
 	zip -r $@ $^
 
-out/manifest.json: src/manifest.json
-	cp src/manifest.json out/
+out/manifest.json: manifest.json
+	cp manifest.json out/
 
 out/settings/settings.html: \
 	src/settings/ \
