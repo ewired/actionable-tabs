@@ -201,6 +201,19 @@ async function initializeIconForCurrentTab() {
 }
 
 /**
+ * Update icon state when a new tab is created
+ * Ensures new tabs show the correct icon state immediately
+ */
+browser.tabs.onCreated.addListener(async (tab) => {
+    if (!tab.id) return;
+
+    // Check if the newly created tab is actionable
+    // New tabs won't be actionable by default, but we should still set the correct icon
+    await updateIconForTab(tab.id);
+    console.log(`Updated icon for newly created tab ${tab.id}`);
+});
+
+/**
  * Schedule the next automatic move based on cron settings
  */
 async function scheduleNextMove() {
