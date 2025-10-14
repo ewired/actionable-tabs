@@ -9,7 +9,8 @@
         "storage",
         "alarms",
         "notifications",
-        "sessions"
+        "sessions",
+        "theme"
     ],
     "background": {
         "scripts": [
@@ -18,11 +19,33 @@
     },
     "action": {
         "default_icon": {
-            "16": "icons/icon-16.png",
-            "32": "icons/icon-32.png",
-            "48": "icons/icon-48.png",
-            "128": "icons/icon-128.png"
+            "16": "icons/icon-16-dark-on-light.png",
+            "32": "icons/icon-32-dark-on-light.png",
+            "48": "icons/icon-48-dark-on-light.png",
+            "128": "icons/icon-128-dark-on-light.png"
         },
+        "theme_icons": [
+            {
+                "dark": "icons/icon-16-dark-on-light.png",
+                "light": "icons/icon-16-light-on-dark.png",
+                "size": 16
+            },
+            {
+                "dark": "icons/icon-32-dark-on-light.png",
+                "light": "icons/icon-32-light-on-dark.png",
+                "size": 32
+            },
+            {
+                "dark": "icons/icon-48-dark-on-light.png",
+                "light": "icons/icon-48-light-on-dark.png",
+                "size": 48
+            },
+            {
+                "dark": "icons/icon-128-dark-on-light.png",
+                "light": "icons/icon-128-light-on-dark.png",
+                "size": 128
+            }
+        ],
         "default_title": "Actionable Tabs"
     },
     "options_ui": {
@@ -30,10 +53,10 @@
         "open_in_tab": false
     },
     "icons": {
-        "16": "icons/icon-16.png",
-        "32": "icons/icon-32.png",
-        "48": "icons/icon-48.png",
-        "128": "icons/icon-128.png"
+        "16": "icons/icon-16-dark-on-light.png",
+        "32": "icons/icon-32-dark-on-light.png",
+        "48": "icons/icon-48-dark-on-light.png",
+        "128": "icons/icon-128-dark-on-light.png"
     },
     "browser_specific_settings": {
         "gecko": {

@@ -1,6 +1,6 @@
 /// <reference types="./ambient.d.ts" />
 
-import {CronExpressionParser} from "cron-parser";
+import { CronExpressionParser } from "cron-parser";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -109,12 +109,29 @@ async function toggleActionableState(tab) {
  */
 async function updateIconForTab(tabId, isActionable) {
     try {
+        // Define icon paths based on actionable state
+        const iconPaths = isActionable ? {
+            16: 'icons/icon-on-32.png',  // Use 32px for 16px (better quality)
+            32: 'icons/icon-on-32.png',
+            48: 'icons/icon-on-48.png',
+            128: 'icons/icon-on-128.png'
+        } : {
+            16: 'icons/icon-off-32.png',  // Use 32px for 16px (better quality)
+            32: 'icons/icon-off-32.png',
+            48: 'icons/icon-off-48.png',
+            128: 'icons/icon-off-128.png'
+        };
+
+        // Set the icon for the specific tab
+        await browser.action.setIcon({
+            tabId: tabId,
+            path: iconPaths
+        });
+
+        // Update title
         if (isActionable) {
-            await browser.action.setBadgeText({ text: '✓', tabId: tabId });
-            await browser.action.setBadgeBackgroundColor({ color: '#4CAF50', tabId: tabId });
             await browser.action.setTitle({ title: 'Actionable Tabs - This tab is actionable', tabId: tabId });
         } else {
-            await browser.action.setBadgeText({ text: '', tabId: tabId });
             await browser.action.setTitle({ title: 'Actionable Tabs - Mark as actionable', tabId: tabId });
         }
     } catch (error) {
@@ -161,7 +178,7 @@ async function scheduleNextMove() {
 
     // Clear any existing alarm first
     await browser.alarms.clear('moveActionableTabs');
-    
+
     // Create one-time alarm (not periodic) - we'll reschedule after execution
     await browser.alarms.create('moveActionableTabs', {
         delayInMinutes: delayMinutes
@@ -179,7 +196,7 @@ async function scheduleNextMove() {
 function parseCronToNextDelay(cronSchedule) {
     // Default fallback to 30 minutes if parsing fails
     const DEFAULT_DELAY_MINUTES = 30;
-    
+
     try {
         // Parse the cron expression with current time as reference
         const options = {
@@ -187,22 +204,22 @@ function parseCronToNextDelay(cronSchedule) {
             // Don't use strict mode to allow flexibility with 5-field expressions
             strict: false
         };
-        
+
         const interval = CronExpressionParser.parse(cronSchedule, options);
-        
+
         // Get the next occurrence
         const nextDate = interval.next().toDate();
         const now = new Date();
-        
+
         // Calculate delay in milliseconds, then convert to minutes
         const delayMs = nextDate.getTime() - now.getTime();
         const delayMinutes = Math.ceil(delayMs / (1000 * 60));
-        
+
         // Ensure minimum delay of 1 minute
         const finalDelay = Math.max(1, delayMinutes);
-        
+
         console.log(`Cron: "${cronSchedule}" - Next execution at ${nextDate.toISOString()} (in ${finalDelay} minutes)`);
-        
+
         return finalDelay;
     } catch (error) {
         console.error(`Failed to parse cron expression "${cronSchedule}":`, error);
@@ -223,22 +240,22 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
             currentDate: new Date(lastMoveTime),
             strict: false
         };
-        
+
         const interval = CronExpressionParser.parse(cronSchedule, options);
         const now = new Date();
         let missedCount = 0;
-        
+
         // Iterate through scheduled times from lastMoveTime until now
         while (true) {
             const nextDate = interval.next().toDate();
-            
+
             // If next scheduled time is in the future, we're done counting
             if (nextDate.getTime() > now.getTime()) {
                 break;
             }
-            
+
             missedCount++;
-            
+
             // Safety check: prevent infinite loops (max 10000 iterations)
             // At 1-minute intervals, this covers ~7 days
             if (missedCount > 10000) {
@@ -246,7 +263,7 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
                 break;
             }
         }
-        
+
         return missedCount;
     } catch (error) {
         console.error(`Failed to calculate missed moves for cron "${cronSchedule}":`, error);
@@ -261,28 +278,28 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
 async function checkForMissedMovesAndCatchUp() {
     const settings = await browser.storage.sync.get(DEFAULT_SETTINGS);
     const lastMoveTime = /** @type {number | null} */ (settings.lastMoveTime);
-    
+
     // If lastMoveTime is not set, this is likely first run or no moves have occurred yet
     if (!lastMoveTime) {
         console.log('No lastMoveTime found - skipping catch-up check');
         return;
     }
-    
+
     const cronSchedule = /** @type {string} */ (settings.cronSchedule || DEFAULT_SETTINGS.cronSchedule);
-    
+
     console.log(`Checking for missed moves since ${new Date(lastMoveTime).toISOString()}`);
-    
+
     const missedMoves = calculateMissedMoves(cronSchedule, lastMoveTime);
-    
+
     if (missedMoves > 0) {
         console.log(`Found ${missedMoves} missed scheduled move(s) - executing catch-up`);
-        
+
         // Execute a single move to catch up
         await moveActionableTabsToTop();
-        
+
         // Update lastMoveTime to now after catching up
         await browser.storage.sync.set({ lastMoveTime: Date.now() });
-        
+
         console.log(`Catch-up complete - brought ${missedMoves} missed move(s) current`);
     } else {
         console.log('No missed moves detected');
@@ -379,7 +396,7 @@ async function moveActionableTabsToTop(isManual = false) {
         if (isManual) {
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48.png',
+                iconUrl: 'icons/icon-48-dark-on-light.png',
                 title: 'Actionable Tabs',
                 message: 'No actionable tabs to pull'
             });
@@ -436,7 +453,7 @@ async function moveActionableTabsToTop(isManual = false) {
 
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48.png',
+                iconUrl: 'icons/icon-48-dark-on-light.png',
                 title: 'Actionable Tabs',
                 message: message
             });
@@ -445,7 +462,7 @@ async function moveActionableTabsToTop(isManual = false) {
             const { data } = moveResults[0];
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48.png',
+                iconUrl: 'icons/icon-48-dark-on-light.png',
                 title: 'Actionable Tabs',
                 message: `"${data.title}" is already at the top`
             });
@@ -462,7 +479,7 @@ async function moveActionableTabsToTop(isManual = false) {
 
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48.png',
+                iconUrl: 'icons/icon-48-dark-on-light.png',
                 title: 'Actionable Tabs',
                 message: message
             });
