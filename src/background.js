@@ -6,7 +6,7 @@ if (typeof browser === "undefined") globalThis.browser = chrome;
 
 const DEFAULT_SETTINGS = {
     cronSchedule: '*/30 * * * *', // every 30 minutes
-    queueMode: 'oldest-first', // 'oldest-first', 'newest-first', 'leftmost-first', 'rightmost-first'
+    queueMode: 'leftmost-first', // 'oldest-first', 'newest-first', 'leftmost-first', 'rightmost-first'
     lastMoveTime: null,
     moveCount: 1 // how many actionable tabs to move per cron execution
 };
