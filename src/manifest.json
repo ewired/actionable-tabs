@@ -9,8 +9,7 @@
         "storage",
         "alarms",
         "notifications",
-        "sessions",
-        "theme"
+        "sessions"
     ],
     "background": {
         "scripts": [

@@ -17,11 +17,13 @@ browser.runtime.onInstalled.addListener(async () => {
     await initializeDefaultSettings();
     createContextMenus();
     await scheduleNextMove();
+    await initializeIconForCurrentTab();
 });
 
 browser.runtime.onStartup.addListener(async () => {
     await checkForMissedMovesAndCatchUp();
     await scheduleNextMove();
+    await initializeIconForCurrentTab();
 });
 
 /**
@@ -166,6 +168,29 @@ browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         await updateIconForTab(tabId, true);
     }
 });
+
+/**
+ * Initialize the icon for the currently active tab
+ * Called on extension startup to ensure correct icon state
+ */
+async function initializeIconForCurrentTab() {
+    try {
+        // Get the current active tab in the current window
+        const [activeTab] = await browser.tabs.query({
+            active: true,
+            currentWindow: true
+        });
+
+        if (activeTab && activeTab.id) {
+            // Check if the active tab is actionable and update icon accordingly
+            const isActionable = await browser.sessions.getTabValue(activeTab.id, 'actionable');
+            await updateIconForTab(activeTab.id, !!isActionable);
+            console.log(`Initialized icon for active tab ${activeTab.id}: ${!!isActionable ? 'actionable' : 'not actionable'}`);
+        }
+    } catch (error) {
+        console.error('Failed to initialize icon for current tab:', error);
+    }
+}
 
 /**
  * Schedule the next automatic move based on cron settings
