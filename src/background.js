@@ -102,9 +102,7 @@ async function toggleActionableState(tab) {
         console.log(`Tab ${tab.id} unmarked as actionable`);
     } else {
         const actionableData = {
-            markedAt: Date.now(),
-            url: tab.url,
-            title: tab.title
+            markedAt: Date.now()
         };
         await browser.sessions.setTabValue(tab.id, 'actionable', actionableData);
         await updateIconForTab(tab.id, true);
@@ -154,26 +152,6 @@ async function updateIconForTab(tabId, isActionable = null) {
  */
 browser.tabs.onActivated.addListener(async (activeInfo) => {
     await updateIconForTab(activeInfo.tabId);
-});
-
-/**
- * Update stored tab info when URL changes
- */
-browser.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-    const actionableData = /** @type {{ markedAt: number, url: string, title: string } | undefined} */ (await browser.sessions.getTabValue(tabId, 'actionable'));
-
-    if (actionableData) {
-        if (changeInfo.url || changeInfo.title) {
-            const updated = {
-                ...actionableData,
-                url: tab.url || actionableData.url,
-                title: tab.title || actionableData.title
-            };
-            await browser.sessions.setTabValue(tabId, 'actionable', updated);
-        }
-
-        await updateIconForTab(tabId, true);
-    }
 });
 
 /**
@@ -375,7 +353,7 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
 /**
  * Get actionable tabs sorted according to queue mode
  * @param {string} queueMode - The queue mode setting
- * @returns {Promise<Array<{tabId: number, data: {markedAt: number, url: string, title: string}, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>>}
+ * @returns {Promise<Array<{tabId: number, data: {markedAt: number}, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>>}
  */
 async function getActionableTabsSorted(queueMode) {
     const allTabs = await browser.tabs.query({ currentWindow: true });
@@ -383,7 +361,7 @@ async function getActionableTabsSorted(queueMode) {
 
     const actionableTabsData = [];
     for (const tab of validTabs) {
-        const actionableData = /** @type {{ markedAt: number, url: string, title: string } | undefined} */ (await browser.sessions.getTabValue(tab.id, 'actionable'));
+        const actionableData = /** @type {{ markedAt: number } | undefined} */ (await browser.sessions.getTabValue(tab.id, 'actionable'));
         if (actionableData) {
             actionableTabsData.push({
                 tabId: tab.id,
@@ -454,6 +432,7 @@ async function moveActionableTabsToTop(isManual = false) {
     const tabsToMove = actionableTabsData.slice(0, moveCount);
 
     // Track which tabs actually moved by comparing old vs new indices
+    /** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
     const moveResults = [];
 
     for (let i = 0; i < tabsToMove.length; i++) {
@@ -467,16 +446,16 @@ async function moveActionableTabsToTop(isManual = false) {
             const newIndex = Array.isArray(movedTab) ? movedTab[0].index : movedTab.index;
 
             const didMove = oldIndex !== newIndex;
-            moveResults.push({ tabId, data, oldIndex, newIndex, didMove });
+            moveResults.push({ tabId, tab, oldIndex, newIndex, didMove });
 
             if (didMove) {
-                console.log(`Moved actionable tab ${tabId} (${data.title}) from index ${oldIndex} to ${newIndex}`);
+                console.log(`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex}`);
             } else {
-                console.log(`Tab ${tabId} (${data.title}) already at correct index ${newIndex}`);
+                console.log(`Tab ${tabId} (${tab.title}) already at correct index ${newIndex}`);
             }
         } catch (error) {
             console.error(`Error moving tab ${tabId}:`, error);
-            moveResults.push({ tabId, data, oldIndex, newIndex: oldIndex, didMove: false });
+            moveResults.push({ tabId, tab, oldIndex, newIndex: oldIndex, didMove: false });
         }
     }
 
@@ -492,9 +471,9 @@ async function moveActionableTabsToTop(isManual = false) {
     if (isManual) {
         // Manual invocation: always show notification with appropriate message
         if (anyTabMoved) {
-            const { data } = moveResults[0];
+            const firstResult = moveResults[0];
             const message = moveResults.length === 1
-                ? `Pulled "${data.title}" to top`
+                ? `Pulled "${firstResult.tab.title}" to top`
                 : `Moved ${moveResults.length} actionable tab(s) to top`;
 
             browser.notifications.create({
@@ -505,12 +484,12 @@ async function moveActionableTabsToTop(isManual = false) {
             });
         } else {
             // Tab was already in position
-            const { data } = moveResults[0];
+            const firstResult = moveResults[0];
             browser.notifications.create({
                 type: 'basic',
                 iconUrl: 'icons/icon-on-48.png',
                 title: 'Actionable Tabs',
-                message: `"${data.title}" is already at the top`
+                message: `"${firstResult.tab.title}" is already at the top`
             });
         }
     } else {
@@ -518,9 +497,9 @@ async function moveActionableTabsToTop(isManual = false) {
         const shouldShowNotification = anyTabMoved && (settings.showNotifications !== false);
 
         if (shouldShowNotification) {
-            const { data } = moveResults[0];
+            const { tab } = moveResults[0];
             const message = moveResults.length === 1
-                ? `Pulled "${data.title}" to top`
+                ? `Pulled "${tab.title}" to top`
                 : `Moved ${moveResults.length} actionable tab(s) to top`;
 
             browser.notifications.create({
