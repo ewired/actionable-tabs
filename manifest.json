@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "Actionable Tabs",
     "version": "1.1.1",
-    "description": "Manage and organize browser tabs with context menu actions",
+    "description": "Mark tabs as actionable and automatically bring them to the top on a schedule. Perfect for managing tasks, reminders, and important tabs.",
     "permissions": [
         "tabs",
         "contextMenus",
