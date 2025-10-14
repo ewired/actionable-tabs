@@ -396,7 +396,7 @@ async function moveActionableTabsToTop(isManual = false) {
         if (isManual) {
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48-dark-on-light.png',
+                iconUrl: 'icons/icon-on-48.png',
                 title: 'Actionable Tabs',
                 message: 'No actionable tabs to pull'
             });
@@ -453,7 +453,7 @@ async function moveActionableTabsToTop(isManual = false) {
 
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48-dark-on-light.png',
+                iconUrl: 'icons/icon-on-48.png',
                 title: 'Actionable Tabs',
                 message: message
             });
@@ -462,7 +462,7 @@ async function moveActionableTabsToTop(isManual = false) {
             const { data } = moveResults[0];
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48-dark-on-light.png',
+                iconUrl: 'icons/icon-on-48.png',
                 title: 'Actionable Tabs',
                 message: `"${data.title}" is already at the top`
             });
@@ -479,7 +479,7 @@ async function moveActionableTabsToTop(isManual = false) {
 
             browser.notifications.create({
                 type: 'basic',
-                iconUrl: 'icons/icon-48-dark-on-light.png',
+                iconUrl: 'icons/icon-on-48.png',
                 title: 'Actionable Tabs',
                 message: message
             });
