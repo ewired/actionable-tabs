@@ -42,6 +42,7 @@ const totalEl = $('total');
 const lastEl = $('last');
 const nextEl = $('next');
 const resetBtn = $('reset', HTMLButtonElement); // Keep for reset functionality
+const clearActionableBtn = $('clearActionable', HTMLButtonElement);
 
 // Load and display settings
 async function load() {
@@ -81,6 +82,26 @@ async function reset() {
     await browser.storage.sync.set(DEFAULTS);
     showMsg('Reset to defaults');
     load();
+}
+
+// Clear all actionable tabs
+async function clearAllActionableTabs() {
+    try {
+        // Send message to background script to clear all actionable tabs
+        const response = /** @type {any} */ (await browser.runtime.sendMessage({ 
+            action: 'clearAllActionableTabs' 
+        }));
+        
+        if (response.success) {
+            showMsg(`Cleared ${response.clearedCount} actionable tab(s)`);
+            load(); // Refresh the status display
+        } else {
+            showMsg('Failed to clear actionable tabs', true);
+        }
+    } catch (err) {
+        console.error('Error clearing actionable tabs:', err);
+        showMsg('Error clearing actionable tabs', true);
+    }
 }
 
 /** @param {string} text @param {boolean} [error=false] @param {number} [duration=3000] */
@@ -169,6 +190,7 @@ async function saveCron(cronExpression) {
 
 // Event listeners
 resetBtn.addEventListener('click', reset);
+clearActionableBtn.addEventListener('click', clearAllActionableTabs);
 
 // Preset selector change handler
 cronPresetInput.addEventListener('change', () => {

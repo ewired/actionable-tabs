@@ -520,3 +520,59 @@ async function moveActionableTabsToTop(isManual = false) {
         }
     }
 }
+
+browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    (async () => {
+        if (typeof message !== "object" || message == null || !("action" in message)) {
+            return { success: false }
+        } else if (message.action === 'clearAllActionableTabs') {
+            try {
+                const clearedCount = await clearAllActionableTabs()
+                return { success: true, clearedCount };
+            }
+            catch (error) {
+                console.error('Error clearing all actionable tabs:', error);
+                return { success: false }
+            }
+        }
+    })().then((r) => sendResponse(r));
+    return true;
+});
+
+/**
+ * Clear all actionable tabs by removing the actionable session data
+ * @returns {Promise<number>} Number of tabs that were cleared
+ */
+async function clearAllActionableTabs() {
+    const allTabs = await browser.tabs.query({ currentWindow: true });
+    const validTabs = allTabs.filter(t => t.id != null);
+
+    let clearedCount = 0;
+
+    for (const tab of validTabs) {
+        const tabId = /** @type {number} */ (tab.id);
+        try {
+            const actionableData = await browser.sessions.getTabValue(tabId, 'actionable');
+            if (actionableData) {
+                await browser.sessions.removeTabValue(tabId, 'actionable');
+                await updateIconForTab(tabId, false);
+                clearedCount++;
+                console.log(`Cleared actionable state for tab ${tabId} (${tab.title})`);
+            }
+        } catch (error) {
+            console.error(`Error clearing actionable state for tab ${tabId}:`, error);
+        }
+    }
+
+    if (clearedCount > 0) {
+        // Show notification about the clear action
+        browser.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon-off-48.png',
+            title: 'Actionable Tabs',
+            message: `Cleared ${clearedCount} actionable tab(s)`
+        });
+    }
+
+    return clearedCount;
+}
