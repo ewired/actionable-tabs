@@ -16,22 +16,22 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v4
               with:
-                  fetch-depth: 2 # Get previous commit for comparison
+                  fetch-depth: 0 # Get full history for before/after comparison
 
             - name: Check version change
               id: check
               run: |
-                  # Get current version
                   NEW_VERSION=$(jq -r '.version' manifest.json)
 
-                  # Get previous version from the previous commit
-                  git checkout HEAD~1 -- manifest.json 2>/dev/null || echo "No previous commit"
-                  OLD_VERSION=$(jq -r '.version' manifest.json 2>/dev/null || echo "")
+                  if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
+                    git checkout ${{ github.event.before }} -- manifest.json 2>/dev/null
+                    OLD_VERSION=$(jq -r '.version' manifest.json 2>/dev/null || echo "")
+                  else
+                    OLD_VERSION=""
+                  fi
 
-                  # Restore current manifest
                   git checkout HEAD -- manifest.json
 
-                  # Compare versions
                   if [ "$NEW_VERSION" != "$OLD_VERSION" ] && [ -n "$OLD_VERSION" ]; then
                     echo "changed=true" >> $GITHUB_OUTPUT
                     echo "new-version=$NEW_VERSION" >> $GITHUB_OUTPUT
