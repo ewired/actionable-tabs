@@ -5,6 +5,20 @@ import { DEFAULTS } from './defaults.js';
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
+// Icon path constants for actionable states
+const ACTIONABLE_ICON_PATHS = {
+    16: 'icons/icon-on-32.png',  // Use 32px for 16px (better quality)
+    32: 'icons/icon-on-32.png',
+    48: 'icons/icon-on-48.png',
+    128: 'icons/icon-on-128.png'
+};
+
+const NON_ACTIONABLE_ICON_PATHS = {
+    16: 'icons/icon-off-32.png',  // Use 32px for 16px (better quality)
+    32: 'icons/icon-off-32.png',
+    48: 'icons/icon-off-48.png',
+    128: 'icons/icon-off-128.png'
+};
 browser.runtime.onInstalled.addListener(async () => {
     console.log('Actionable Tabs extension installed');
 
@@ -101,22 +115,22 @@ async function toggleActionableState(tab) {
 /**
  * Update icon state for a specific tab
  * @param {number} tabId
- * @param {boolean} isActionable
+ * @param {boolean | null} isActionable
  */
-async function updateIconForTab(tabId, isActionable) {
+async function updateIconForTab(tabId, isActionable = null) {
     try {
-        // Define icon paths based on actionable state
-        const iconPaths = isActionable ? {
-            16: 'icons/icon-on-32.png',  // Use 32px for 16px (better quality)
-            32: 'icons/icon-on-32.png',
-            48: 'icons/icon-on-48.png',
-            128: 'icons/icon-on-128.png'
-        } : {
-            16: 'icons/icon-off-32.png',  // Use 32px for 16px (better quality)
-            32: 'icons/icon-off-32.png',
-            48: 'icons/icon-off-48.png',
-            128: 'icons/icon-off-128.png'
-        };
+        // If actionable state not provided, detect it from session data
+        if (isActionable === null) {
+            try {
+                const actionableData = await browser.sessions.getTabValue(tabId, 'actionable');
+                isActionable = !!actionableData;
+            } catch (sessionError) {
+                // If session data isn't available, default to non-actionable
+                isActionable = false;
+            }
+        }
+
+        const iconPaths = isActionable ? ACTIONABLE_ICON_PATHS : NON_ACTIONABLE_ICON_PATHS;
 
         // Set the icon for the specific tab
         await browser.action.setIcon({
@@ -131,7 +145,7 @@ async function updateIconForTab(tabId, isActionable) {
             await browser.action.setTitle({ title: 'Actionable Tabs - Mark as actionable', tabId: tabId });
         }
     } catch (error) {
-        console.log(`Could not update icon for tab ${tabId}:`, error);
+        console.log(`Could not update icon for tab ${tabId} (actionable: ${isActionable}):`, String(error));
     }
 }
 
@@ -139,8 +153,7 @@ async function updateIconForTab(tabId, isActionable) {
  * Update icon state when tab is activated
  */
 browser.tabs.onActivated.addListener(async (activeInfo) => {
-    const isActionable = await browser.sessions.getTabValue(activeInfo.tabId, 'actionable');
-    await updateIconForTab(activeInfo.tabId, !!isActionable);
+    await updateIconForTab(activeInfo.tabId);
 });
 
 /**
@@ -177,9 +190,10 @@ async function initializeIconForCurrentTab() {
 
         if (activeTab && activeTab.id) {
             // Check if the active tab is actionable and update icon accordingly
-            const isActionable = await browser.sessions.getTabValue(activeTab.id, 'actionable');
-            await updateIconForTab(activeTab.id, !!isActionable);
-            console.log(`Initialized icon for active tab ${activeTab.id}: ${!!isActionable ? 'actionable' : 'not actionable'}`);
+            await updateIconForTab(activeTab.id);
+            console.log(`Initialized icon for active tab ${activeTab.id}`);
+        } else {
+            console.log('No active tab found during initialization');
         }
     } catch (error) {
         console.error('Failed to initialize icon for current tab:', error);
