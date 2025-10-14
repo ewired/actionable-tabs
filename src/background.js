@@ -24,13 +24,13 @@ browser.runtime.onInstalled.addListener(async () => {
     await initializeDefaultSettings();
     createContextMenus();
     await scheduleNextMove();
-    await initializeIconForCurrentTab();
+    await initializeIconsForAllTabs();
 });
 
 browser.runtime.onStartup.addListener(async () => {
     await checkForMissedMovesAndCatchUp();
     await scheduleNextMove();
-    await initializeIconForCurrentTab();
+    await initializeIconsForAllTabs();
 });
 
 /**
@@ -158,25 +158,28 @@ browser.tabs.onActivated.addListener(async (activeInfo) => {
     await updateIconForTab(activeInfo.tabId);
 });
 
-/**
- * Initialize the icon for the currently active tab
- * Called on extension startup to ensure correct icon state
- */
-async function initializeIconForCurrentTab() {
-    try {
-        const [activeTab] = await browser.tabs.query({
-            active: true,
-            currentWindow: true
-        });
 
-        if (activeTab && activeTab.id) {
-            await updateIconForTab(activeTab.id);
-            console.log(`Initialized icon for active tab ${activeTab.id}`);
-        } else {
-            console.log('No active tab found during initialization');
+
+/**
+ * Update icon state for all currently open tabs
+ * Ensures all tabs show the correct actionable/non-actionable icon state
+ * Called on extension startup to pre-set correct icons for existing tabs
+ */
+async function initializeIconsForAllTabs() {
+    try {
+        const allTabs = await browser.tabs.query({});
+        const validTabs = allTabs.filter(t => t.id != null);
+
+        console.log(`Initializing icons for ${validTabs.length} tabs`);
+
+        for (const tab of validTabs) {
+            const tabId = /** @type {number} */ (tab.id);
+            await updateIconForTab(tabId);
         }
+
+        console.log('Completed icon initialization for all tabs');
     } catch (error) {
-        console.error('Failed to initialize icon for current tab:', error);
+        console.error('Failed to initialize icons for all tabs:', error);
     }
 }
 
@@ -380,6 +383,8 @@ async function getActionableTabsSorted(queueMode) {
 
     return actionableTabsData;
 }
+
+
 
 /**
  * Get the target index for moving actionable tabs (after pinned tabs)
