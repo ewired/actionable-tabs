@@ -1,15 +1,9 @@
 /// <reference types="@types/webextension-polyfill" />
 
+import { DEFAULTS } from '../defaults.js';
+
 // Browser compatibility shim
 if (typeof browser === "undefined") globalThis.browser = chrome;
-
-const DEFAULTS = {
-    cronSchedule: '*/30 * * * *',
-    queueMode: 'oldest-first',
-    moveCount: 1,
-    showNotifications: true,
-    lastMoveTime: null
-};
 
 /**
  * @template {HTMLElement} T
@@ -58,7 +52,7 @@ async function load() {
 
     // Load status
     const tabs = await browser.tabs.query({ currentWindow: true });
-    
+
     // Count actionable tabs by checking session values
     let actionableCount = 0;
     for (const tab of tabs) {
@@ -68,7 +62,7 @@ async function load() {
             actionableCount++;
         }
     }
-    
+
     const alarm = /** @type {any} */ (await browser.alarms.get('moveActionableTabs'));
 
     actionableEl.textContent = String(actionableCount);

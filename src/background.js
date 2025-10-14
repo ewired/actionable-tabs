@@ -1,15 +1,9 @@
 /// <reference types="./ambient.d.ts" />
 
 import { CronExpressionParser } from "cron-parser";
+import { DEFAULTS } from './defaults.js';
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
-
-const DEFAULT_SETTINGS = {
-    cronSchedule: '*/30 * * * *', // every 30 minutes
-    queueMode: 'leftmost-first', // 'oldest-first', 'newest-first', 'leftmost-first', 'rightmost-first'
-    lastMoveTime: null,
-    moveCount: 1 // how many actionable tabs to move per cron execution
-};
 
 browser.runtime.onInstalled.addListener(async () => {
     console.log('Actionable Tabs extension installed');
@@ -30,7 +24,7 @@ browser.runtime.onStartup.addListener(async () => {
  * Initialize default settings
  */
 async function initializeDefaultSettings() {
-    const settings = await browser.storage.sync.get(DEFAULT_SETTINGS);
+    const settings = await browser.storage.sync.get(DEFAULTS);
     await browser.storage.sync.set(settings);
 }
 
@@ -196,8 +190,8 @@ async function initializeIconForCurrentTab() {
  * Schedule the next automatic move based on cron settings
  */
 async function scheduleNextMove() {
-    const settings = await browser.storage.sync.get(DEFAULT_SETTINGS);
-    const cronSchedule = /** @type {string} */ (settings.cronSchedule || DEFAULT_SETTINGS.cronSchedule);
+    const settings = await browser.storage.sync.get(DEFAULTS);
+    const cronSchedule = /** @type {string} */ (settings.cronSchedule || DEFAULTS.cronSchedule);
 
     const delayMinutes = parseCronToNextDelay(cronSchedule);
 
@@ -301,7 +295,7 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
  * Called on browser startup to ensure idempotency across restarts
  */
 async function checkForMissedMovesAndCatchUp() {
-    const settings = await browser.storage.sync.get(DEFAULT_SETTINGS);
+    const settings = await browser.storage.sync.get(DEFAULTS);
     const lastMoveTime = /** @type {number | null} */ (settings.lastMoveTime);
 
     // If lastMoveTime is not set, this is likely first run or no moves have occurred yet
@@ -310,7 +304,7 @@ async function checkForMissedMovesAndCatchUp() {
         return;
     }
 
-    const cronSchedule = /** @type {string} */ (settings.cronSchedule || DEFAULT_SETTINGS.cronSchedule);
+    const cronSchedule = /** @type {string} */ (settings.cronSchedule || DEFAULTS.cronSchedule);
 
     console.log(`Checking for missed moves since ${new Date(lastMoveTime).toISOString()}`);
 
@@ -406,11 +400,11 @@ async function getTargetIndexForActionableTabs() {
  * @param {boolean} isManual - If true, override moveCount to 1 and always show notifications
  */
 async function moveActionableTabsToTop(isManual = false) {
-    const settings = await browser.storage.sync.get(DEFAULT_SETTINGS);
-    const queueMode = /** @type {string} */ (settings.queueMode || DEFAULT_SETTINGS.queueMode);
+    const settings = await browser.storage.sync.get(DEFAULTS);
+    const queueMode = /** @type {string} */ (settings.queueMode || DEFAULTS.queueMode);
 
     // Override moveCount to 1 when manually invoked, otherwise use configured setting
-    const moveCount = isManual ? 1 : /** @type {number} */ (settings.moveCount || DEFAULT_SETTINGS.moveCount);
+    const moveCount = isManual ? 1 : /** @type {number} */ (settings.moveCount || DEFAULTS.moveCount);
 
     const actionableTabsData = await getActionableTabsSorted(queueMode);
 

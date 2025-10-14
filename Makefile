@@ -5,18 +5,18 @@ web-ext-artifacts/webext.zip: out/settings/settings.html out/background.js out/m
 	cp -r src/icons out/
 	bun x web-ext build -s ./out -n webext.zip -o
 
-web-ext-artifacts/source.zip: src/manifest.json src/background.js src/settings/settings.html src/settings/settings.js src/settings/settings.css src/icons/ Makefile package.json README.md tsconfig.json LICENSE
+web-ext-artifacts/source.zip: src/manifest.json src/background.js src/settings/settings.html src/settings/settings.js src/settings/settings.css src/defaults.js src/icons/ Makefile package.json README.md tsconfig.json LICENSE
 	mkdir -p web-ext-artifacts
 	zip -r $@ $^
 
 out/manifest.json: src/manifest.json
 	cp src/manifest.json out/
 
-out/settings/settings.html: src/settings/settings.html src/settings/settings.js src/settings/settings.css
+out/settings/settings.html: src/settings/settings.html src/settings/settings.js src/settings/settings.css src/defaults.js
 	rm -r out/settings || true
 	bun build src/settings/settings.html --outdir=out/settings $(BUN_BUILD_OPTS)
 
-out/background.js: src/background.js
+out/background.js: src/background.js src/defaults.js
 	bun build src/background.js --outdir=out $(BUN_BUILD_OPTS)
 
 .PHONY: clean sign
