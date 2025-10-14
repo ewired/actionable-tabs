@@ -12,9 +12,7 @@ web-ext-artifacts/source.zip: src/ manifest.json Makefile package.json README.md
 out/manifest.json: manifest.json
 	cp manifest.json out/
 
-out/settings/settings.html: \
-	src/settings/ \
-	src/defaults.js
+out/settings/settings.html: $(wildcard src/settings/*) src/defaults.js
 	rm -r out/settings || true
 	bun build src/settings/settings.html --outdir=out/settings $(BUN_BUILD_OPTS)
 
