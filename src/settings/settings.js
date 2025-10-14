@@ -1,6 +1,7 @@
 /// <reference types="@types/webextension-polyfill" />
 
 import { DEFAULTS } from '../defaults.js';
+import { CronExpressionParser } from 'cron-parser';
 
 // Browser compatibility shim
 if (typeof browser === "undefined") globalThis.browser = chrome;
@@ -29,19 +30,18 @@ const $ = (id, type) => {
     return el;
 };;
 
-const form = $('settings', HTMLFormElement);
 const msg = $('msg');
 const cronInput = $('cron', HTMLInputElement);
 const queueModeInput = $('queueMode', HTMLSelectElement);
 const countInput = $('count', HTMLInputElement);
 const notifyInput = $('notify', HTMLInputElement);
-const resetBtn = $('reset', HTMLButtonElement);
 const cronPresetInput = $('cronPreset', HTMLSelectElement);
 const actionableEl = $('actionable');
 const pinnedEl = $('pinned');
 const totalEl = $('total');
 const lastEl = $('last');
 const nextEl = $('next');
+const resetBtn = $('reset', HTMLButtonElement); // Keep for reset functionality
 
 // Load and display settings
 async function load() {
@@ -74,37 +74,20 @@ async function load() {
     nextEl.textContent = alarm?.scheduledTime ? relTime(new Date(alarm.scheduledTime)) : 'Unknown';
 }
 
-/** @param {Event} e */
-async function save(e) {
-    e.preventDefault();
 
-    const settings = {
-        cronSchedule: cronInput.value.trim(),
-        queueMode: queueModeInput.value,
-        moveCount: parseInt(countInput.value),
-        showNotifications: notifyInput.checked
-    };
-
-    if (!settings.cronSchedule) return showMsg('Cron required', true);
-    if (settings.moveCount < 1 || settings.moveCount > 10) return showMsg('Count: 1-10', true);
-
-    await browser.storage.sync.set(settings);
-    showMsg('Saved');
-    load();
-}
 
 // Reset to defaults
 async function reset() {
     await browser.storage.sync.set(DEFAULTS);
-    showMsg('Reset');
+    showMsg('Reset to defaults');
     load();
 }
 
-/** @param {string} text @param {boolean} [error=false] */
-function showMsg(text, error = false) {
+/** @param {string} text @param {boolean} [error=false] @param {number} [duration=3000] */
+function showMsg(text, error = false, duration = 3000) {
     msg.textContent = text;
     msg.className = error ? 'error' : '';
-    setTimeout(() => msg.textContent = '', 3000);
+    setTimeout(() => msg.textContent = '', duration);
 }
 
 /** @param {Date} d */
@@ -141,26 +124,110 @@ function updatePresetSelector(cronExpression) {
     }
 }
 
+/** @param {string} cronExpression @returns {boolean} */
+function isValidCron(cronExpression) {
+    if (!cronExpression || !cronExpression.trim()) return false;
+    try {
+        CronExpressionParser.parse(cronExpression.trim());
+        return true;
+    } catch (err) {
+        return false;
+    }
+}
+
+/** @param {string} setting @param {any} value */
+async function autoSave(setting, value) {
+    try {
+        await browser.storage.sync.set({ [setting]: value });
+        showMsg('Settings saved');
+    } catch (err) {
+        showMsg('Save failed', true);
+    }
+}
+
+/** @param {string} cronExpression */
+async function saveCron(cronExpression) {
+    const trimmedCron = cronExpression.trim();
+
+    if (!trimmedCron) {
+        cronInput.classList.add('invalid');
+        showMsg('Cron expression required', true);
+        return;
+    }
+
+    if (!isValidCron(trimmedCron)) {
+        cronInput.classList.add('invalid');
+        showMsg('Invalid cron expression', true);
+        return;
+    }
+
+    cronInput.classList.remove('invalid');
+    await autoSave('cronSchedule', trimmedCron);
+    updatePresetSelector(trimmedCron);
+    load(); // Refresh the status display to show updated next move time
+}
+
 // Event listeners
-form.addEventListener('submit', save);
 resetBtn.addEventListener('click', reset);
 
 // Preset selector change handler
 cronPresetInput.addEventListener('change', () => {
     if (cronPresetInput.value !== 'custom') {
         cronInput.value = cronPresetInput.value;
-        showMsg('Unsaved changes');
+        saveCron(cronPresetInput.value);
     }
 });
 
-// Change detection
-cronInput.addEventListener('change', () => {
-    updatePresetSelector(cronInput.value.trim());
-    showMsg('Unsaved changes');
+// Cron input validation on input, save on blur or enter
+cronInput.addEventListener('input', () => {
+    const value = cronInput.value.trim();
+    if (value && isValidCron(value)) {
+        cronInput.classList.remove('invalid');
+    } else if (value) {
+        cronInput.classList.add('invalid');
+    } else {
+        cronInput.classList.remove('invalid');
+    }
 });
-queueModeInput.addEventListener('change', () => showMsg('Unsaved changes'));
-countInput.addEventListener('change', () => showMsg('Unsaved changes'));
-notifyInput.addEventListener('change', () => showMsg('Unsaved changes'));
+
+cronInput.addEventListener('blur', () => {
+    const value = cronInput.value.trim();
+    if (value && isValidCron(value)) {
+        saveCron(value);
+    } else if (value) {
+        showMsg('Invalid cron expression', true);
+    }
+});
+
+cronInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        const value = cronInput.value.trim();
+        if (value && isValidCron(value)) {
+            saveCron(value);
+        } else if (value) {
+            showMsg('Invalid cron expression', true);
+        }
+    }
+});
+
+// Auto-save other settings on change
+queueModeInput.addEventListener('change', () => {
+    autoSave('queueMode', queueModeInput.value);
+});
+
+countInput.addEventListener('change', () => {
+    const value = parseInt(countInput.value);
+    if (value >= 1 && value <= 10) {
+        autoSave('moveCount', value);
+    } else {
+        showMsg('Count must be between 1-10', true);
+        countInput.value = '1'; // Reset to valid value
+    }
+});
+
+notifyInput.addEventListener('change', () => {
+    autoSave('showNotifications', notifyInput.checked);
+});
 
 // Initialize
 load();

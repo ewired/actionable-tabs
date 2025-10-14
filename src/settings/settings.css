@@ -68,6 +68,11 @@ select:focus {
     outline-offset: 2px;
 }
 
+input.invalid {
+    border-color: #f00;
+    background: #fee;
+}
+
 input[type="number"] {
     width: 80px;
 }
