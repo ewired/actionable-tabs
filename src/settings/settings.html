@@ -8,80 +8,8 @@
 </head>
 <body>
 
-<h1>ACTIONABLE TABS</h1>
+<div id="app"></div>
 
- <div id="settings">
-  <fieldset>
-    <legend>Schedule</legend>
-    <label>
-      Schedule Preset
-      <select id="cronPreset">
-        <option value="*/1 * * * *">Every minute</option>
-        <option value="*/5 * * * *">Every 5 minutes</option>
-        <option value="*/15 * * * *">Every 15 minutes</option>
-        <option value="*/30 * * * *">Every 30 minutes</option>
-        <option value="0 * * * *">Hourly</option>
-        <option value="0 */2 * * *">Every 2 hours</option>
-        <option value="0 */4 * * *">Every 4 hours</option>
-        <option value="0 */6 * * *">Every 6 hours</option>
-        <option value="0 0 * * *">Daily (midnight)</option>
-        <option value="0 12 * * *">Daily (noon)</option>
-        <option value="0 0 * * 0">Weekly (Sunday midnight)</option>
-        <option value="0 0 1 * *">Monthly (1st of month)</option>
-        <option value="custom">Custom</option>
-      </select>
-      <small>Choose a common schedule or enter custom cron below</small>
-    </label>
-    <label>
-      Cron Expression
-      <input type="text" id="cron" placeholder="*/30 * * * *" required>
-      <small>*/15 * * * * = every 15min | 0 * * * * = hourly</small>
-    </label>
-  </fieldset>
-
-   <fieldset>
-     <legend>Queue</legend>
-     <label>
-       Queue Order
-       <select id="queueMode">
-         <option value="oldest-first">Oldest First (FIFO)</option>
-         <option value="newest-first">Newest First (LIFO)</option>
-         <option value="leftmost-first">Leftmost First</option>
-         <option value="rightmost-first">Rightmost First</option>
-       </select>
-       <small>How to choose which actionable tabs to move</small>
-     </label>
-     <label>
-       Tabs per cycle
-       <input type="number" id="count" min="1" max="10" value="1" required>
-     </label>
-   </fieldset>
-
-  <fieldset>
-    <legend>Options</legend>
-    <label>
-      <input type="checkbox" id="notify">
-      Show notifications
-    </label>
-  </fieldset>
-
-  <fieldset>
-    <legend>Status</legend>
-    <dl>
-      <dt>Actionable</dt><dd id="actionable">-</dd>
-      <dt>Pinned</dt><dd id="pinned">-</dd>
-      <dt>Total</dt><dd id="total">-</dd>
-      <dt>Last move</dt><dd id="last">Never</dd>
-      <dt>Next move</dt><dd id="next">-</dd>
-    </dl>
-  </fieldset>
-
-  <div id="msg"></div>
-
-   <button type="button" id="reset">RESET</button>
-   <button type="button" id="clearActionable">CLEAR ALL ACTIONABLE TABS</button>
- </div>
-
-<script src="settings.js"></script>
+<script type="module" src="settings.tsx"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 {
 	"$schema": "https://unpkg.com/knip@5/schema.json",
-	"entry": ["src/background.js", "src/settings/settings.js"],
+	"entry": ["src/background.js", "src/settings/settings.tsx"],
 	"ignore": [
 		"out/**",
 		"dist/**",

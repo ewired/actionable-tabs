@@ -1,7 +1,9 @@
 {
 	"dependencies": {
+		"@preact/signals": "^2.3.2",
 		"@types/webextension-polyfill": "^0.12.4",
 		"cron-parser": "^5.4.0",
+		"preact": "^10.27.2",
 		"typescript": "^5.0.0",
 		"webextension-polyfill": "^0.12.0"
 	},
