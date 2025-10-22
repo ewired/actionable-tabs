@@ -154,3 +154,59 @@ button#clearActionable:hover {
 	background: #000;
 	color: #fff;
 }
+
+.rule-container {
+	border: 1px solid #ccc;
+	padding: 15px;
+	margin-bottom: 15px;
+	border-radius: 4px;
+}
+
+.rule-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.rule-header h3 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: bold;
+}
+
+.rule-controls {
+	display: flex;
+	gap: 5px;
+}
+
+.rule-controls button {
+	padding: 5px 10px;
+	font-size: 12px;
+	margin: 0;
+	min-width: 30px;
+}
+
+.rule-controls button.remove {
+	background: #fff;
+	color: #d00;
+	border-color: #d00;
+}
+
+.rule-controls button.remove:hover {
+	background: #d00;
+	color: #fff;
+}
+
+button.add-rule {
+	background: #000;
+	color: #fff;
+	border-color: #000;
+	width: 100%;
+	margin-top: 10px;
+}
+
+button.add-rule:hover {
+	background: #fff;
+	color: #000;
+}

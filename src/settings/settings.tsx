@@ -1,10 +1,10 @@
 /// <reference types="@types/webextension-polyfill" />
 
-import { computed, signal } from "@preact/signals";
+import { signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
 
-import { DEFAULTS, type Settings } from "../defaults";
+import { DEFAULTS, type Rule, type Settings } from "../defaults";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 type Status = {
@@ -28,38 +28,6 @@ const status = signal<Status>({
 const isLoading = signal<boolean>(true);
 const saveStatus = signal<"idle" | "saving" | "saved" | "error">("idle");
 
-const cronPreset = computed(() => {
-	const presets = [
-		"*/1 * * * *",
-		"*/5 * * * *",
-		"*/15 * * * *",
-		"*/30 * * * *",
-		"0 * * * *",
-		"0 */2 * * *",
-		"0 */4 * * *",
-		"0 */6 * * *",
-		"0 0 * * *",
-		"0 12 * * *",
-		"0 0 * * 0",
-		"0 0 1 * *",
-	];
-
-	return presets.includes(settings.value.cronSchedule)
-		? settings.value.cronSchedule
-		: "custom";
-});
-
-const isValidCron = computed(() => {
-	const cronExpression = settings.value.cronSchedule;
-	if (!cronExpression || !cronExpression.trim()) return false;
-	try {
-		CronExpressionParser.parse(cronExpression.trim());
-		return true;
-	} catch (_err) {
-		return false;
-	}
-});
-
 async function updateStatus(): Promise<void> {
 	const tabs = await browser.tabs.query({ currentWindow: true });
 
@@ -77,12 +45,23 @@ async function updateStatus(): Promise<void> {
 
 	const alarm = await browser.alarms.get("moveActionableTabs");
 
+	// Find the most recent lastMoveTime across all rules
+	let mostRecentLastMoveTime = null;
+	for (const rule of settings.value.rules) {
+		if (
+			rule.lastMoveTime &&
+			(!mostRecentLastMoveTime || rule.lastMoveTime > mostRecentLastMoveTime)
+		) {
+			mostRecentLastMoveTime = rule.lastMoveTime;
+		}
+	}
+
 	status.value = {
 		actionable: actionableCount,
 		pinned: tabs.filter((t) => t.pinned).length,
 		total: tabs.length,
-		lastMove: settings.value.lastMoveTime
-			? relTime(new Date(settings.value.lastMoveTime))
+		lastMove: mostRecentLastMoveTime
+			? relTime(new Date(mostRecentLastMoveTime))
 			: "Never",
 		nextMove: alarm?.scheduledTime
 			? relTime(new Date(alarm.scheduledTime))
@@ -117,12 +96,9 @@ function relTime(d: Date): string {
 let debounceTimeout: number | null = null;
 let pendingChanges: Partial<Settings> = {};
 
-function autoSave<Key extends keyof Settings>(
-	setting: Key,
-	value: Settings[Key],
-): void {
-	settings.value = { ...settings.peek(), [setting]: value };
-	pendingChanges[setting] = value;
+function autoSaveRules(rules: Rule[]): void {
+	settings.value = { ...settings.peek(), rules };
+	pendingChanges.rules = rules;
 
 	if (debounceTimeout !== null) {
 		clearTimeout(debounceTimeout);
@@ -138,6 +114,46 @@ function autoSave<Key extends keyof Settings>(
 			saveStatus.value = "error";
 		}
 	}, 500);
+}
+
+function updateRule(index: number, updates: Partial<Rule>): void {
+	const newRules = [...settings.value.rules];
+	newRules[index] = { ...newRules[index], ...updates };
+	autoSaveRules(newRules);
+}
+
+function addRule(): void {
+	const newRule: Rule = {
+		id: crypto.randomUUID(),
+		cronSchedule: "*/30 * * * *",
+		queueMode: "leftmost-first",
+		lastMoveTime: null,
+		moveCount: 1,
+		moveDirection: "left",
+		showNotifications: true,
+	};
+	const newRules = [...settings.value.rules, newRule];
+	autoSaveRules(newRules);
+}
+
+function removeRule(index: number): void {
+	// Defensive check: prevent removing the last rule even though UI prevents this scenario
+	if (settings.value.rules.length <= 1) {
+		console.warn("Cannot remove the last rule");
+		return;
+	}
+
+	const newRules = settings.value.rules.filter((_, i) => i !== index);
+	autoSaveRules(newRules);
+}
+
+function moveRule(index: number, direction: "up" | "down"): void {
+	const newRules = [...settings.value.rules];
+	const rule = newRules[index];
+	newRules.splice(index, 1);
+	const newIndex = direction === "up" ? index - 1 : index + 1;
+	newRules.splice(newIndex, 0, rule);
+	autoSaveRules(newRules);
 }
 
 updateStatus();
@@ -177,115 +193,185 @@ function App() {
 			)}
 			<div id="settings">
 				<fieldset>
-					<legend>Schedule</legend>
-					<label>
-						Schedule Preset
-						<select
-							value={cronPreset.value}
-							onChange={(e) => {
-								const value = e.currentTarget.value;
-								if (value !== "custom") {
-									autoSave("cronSchedule", value);
-								}
-							}}
-						>
-							<option value="*/1 * * * *">Every minute</option>
-							<option value="*/5 * * * *">Every 5 minutes</option>
-							<option value="*/15 * * * *">Every 15 minutes</option>
-							<option value="*/30 * * * *">Every 30 minutes</option>
-							<option value="0 * * * *">Hourly</option>
-							<option value="0 */2 * * *">Every 2 hours</option>
-							<option value="0 */4 * * *">Every 4 hours</option>
-							<option value="0 */6 * * *">Every 6 hours</option>
-							<option value="0 0 * * *">Daily (midnight)</option>
-							<option value="0 12 * * *">Daily (noon)</option>
-							<option value="0 0 * * 0">Weekly (Sunday midnight)</option>
-							<option value="0 0 1 * *">Monthly (1st of month)</option>
-							<option value="custom">Custom</option>
-						</select>
-						<small>Choose a common schedule or enter custom cron below</small>
-					</label>
-					<label>
-						Cron Expression
-						<input
-							type="text"
-							value={settings.value.cronSchedule}
-							onInput={(e) => {
-								autoSave("cronSchedule", e.currentTarget.value);
-							}}
-							class={!isValidCron.value ? "invalid" : ""}
-							placeholder="*/30 * * * *"
-						/>
-						<small>*/15 * * * * = every 15min | 0 * * * * = hourly</small>
-					</label>
-				</fieldset>
+					<legend>Rules</legend>
+					{settings.value.rules.map((rule, index) => (
+						<div key={rule.id} class="rule-container">
+							<div class="rule-header">
+								<h3>Rule {index + 1}</h3>
+								<div class="rule-controls">
+									{index > 0 && (
+										<button
+											type="button"
+											onClick={() => moveRule(index, "up")}
+											title="Move up"
+										>
+											↑
+										</button>
+									)}
+									{index < settings.value.rules.length - 1 && (
+										<button
+											type="button"
+											onClick={() => moveRule(index, "down")}
+											title="Move down"
+										>
+											↓
+										</button>
+									)}
+									{settings.value.rules.length > 1 && (
+										<button
+											type="button"
+											onClick={() => removeRule(index)}
+											class="remove"
+											title="Remove rule"
+										>
+											×
+										</button>
+									)}
+								</div>
+							</div>
 
-				<fieldset>
-					<legend>Queue</legend>
-					<label>
-						Queue Order
-						<select
-							value={settings.value.queueMode}
-							onChange={(e) => {
-								const value = e.currentTarget.value as
-									| "oldest-first"
-									| "newest-first"
-									| "leftmost-first"
-									| "rightmost-first";
-								autoSave("queueMode", value);
-							}}
-						>
-							<option value="oldest-first">Oldest First (FIFO)</option>
-							<option value="newest-first">Newest First (LIFO)</option>
-							<option value="leftmost-first">Leftmost First</option>
-							<option value="rightmost-first">Rightmost First</option>
-						</select>
-						<small>How to choose which actionable tabs to move</small>
-					</label>
-					<label>
-						Tabs per cycle
-						<input
-							type="number"
-							value={settings.value.moveCount}
-							onChange={(e) => {
-								const value = parseInt(e.currentTarget.value, 10);
-								if (value >= 1 && value <= 10) {
-									autoSave("moveCount", value);
-								}
-							}}
-							min="1"
-							max="10"
-							required
-						/>
-					</label>
-					<label>
-						Move Direction
-						<select
-							value={settings.value.moveDirection}
-							onChange={(e) => {
-								const value = e.currentTarget.value as "left" | "right";
-								autoSave("moveDirection", value);
-							}}
-						>
-							<option value="left">Left (after pinned tabs)</option>
-							<option value="right">Right (end of tab strip)</option>
-						</select>
-						<small>Where to move actionable tabs</small>
-					</label>
-				</fieldset>
+							<label>
+								Schedule Preset
+								<select
+									value={(() => {
+										const presets = [
+											"*/1 * * * *",
+											"*/5 * * * *",
+											"*/15 * * * *",
+											"*/30 * * * *",
+											"0 * * * *",
+											"0 */2 * * *",
+											"0 */4 * * *",
+											"0 */6 * * *",
+											"0 0 * * *",
+											"0 12 * * *",
+											"0 0 * * 0",
+											"0 0 1 * *",
+										];
+										return presets.includes(rule.cronSchedule)
+											? rule.cronSchedule
+											: "custom";
+									})()}
+									onChange={(e) => {
+										const value = e.currentTarget.value;
+										if (value !== "custom") {
+											updateRule(index, { cronSchedule: value });
+										}
+									}}
+								>
+									<option value="*/1 * * * *">Every minute</option>
+									<option value="*/5 * * * *">Every 5 minutes</option>
+									<option value="*/15 * * * *">Every 15 minutes</option>
+									<option value="*/30 * * * *">Every 30 minutes</option>
+									<option value="0 * * * *">Hourly</option>
+									<option value="0 */2 * * *">Every 2 hours</option>
+									<option value="0 */4 * * *">Every 4 hours</option>
+									<option value="0 */6 * * *">Every 6 hours</option>
+									<option value="0 0 * * *">Daily (midnight)</option>
+									<option value="0 12 * * *">Daily (noon)</option>
+									<option value="0 0 * * 0">Weekly (Sunday midnight)</option>
+									<option value="0 0 1 * *">Monthly (1st of month)</option>
+									<option value="custom">Custom</option>
+								</select>
+								<small>
+									Choose a common schedule or enter custom cron below
+								</small>
+							</label>
 
-				<fieldset>
-					<legend>Options</legend>
-					<label>
-						<input
-							type="checkbox"
-							checked={settings.value.showNotifications}
-							onChange={(e) => {
-								autoSave("showNotifications", e.currentTarget.checked);
-							}}
-						/>
-						Show notifications
-					</label>
+							<label>
+								Cron Expression
+								<input
+									type="text"
+									value={rule.cronSchedule}
+									onInput={(e) => {
+										updateRule(index, { cronSchedule: e.currentTarget.value });
+									}}
+									class={(() => {
+										if (!rule.cronSchedule || !rule.cronSchedule.trim())
+											return "invalid";
+										try {
+											CronExpressionParser.parse(rule.cronSchedule.trim());
+											return "";
+										} catch (_err) {
+											return "invalid";
+										}
+									})()}
+									placeholder="*/30 * * * *"
+								/>
+								<small>*/15 * * * * = every 15min | 0 * * * * = hourly</small>
+							</label>
+
+							<label>
+								Queue Order
+								<select
+									value={rule.queueMode}
+									onChange={(e) => {
+										const value = e.currentTarget.value as
+											| "oldest-first"
+											| "newest-first"
+											| "leftmost-first"
+											| "rightmost-first";
+										updateRule(index, { queueMode: value });
+									}}
+								>
+									<option value="oldest-first">Oldest First (FIFO)</option>
+									<option value="newest-first">Newest First (LIFO)</option>
+									<option value="leftmost-first">Leftmost First</option>
+									<option value="rightmost-first">Rightmost First</option>
+								</select>
+								<small>How to choose which actionable tabs to move</small>
+							</label>
+
+							<label>
+								Tabs per cycle
+								<input
+									type="number"
+									value={rule.moveCount}
+									onChange={(e) => {
+										const value = parseInt(e.currentTarget.value, 10);
+										if (value >= 1 && value <= 10) {
+											updateRule(index, { moveCount: value });
+										}
+									}}
+									min="1"
+									max="10"
+									required
+								/>
+							</label>
+
+							<label>
+								Move Direction
+								<select
+									value={rule.moveDirection}
+									onChange={(e) => {
+										const value = e.currentTarget.value as "left" | "right";
+										updateRule(index, { moveDirection: value });
+									}}
+								>
+									<option value="left">Left (after pinned tabs)</option>
+									<option value="right">Right (end of tab strip)</option>
+								</select>
+								<small>Where to move actionable tabs</small>
+							</label>
+
+							<label>
+								<input
+									type="checkbox"
+									checked={rule.showNotifications}
+									onChange={(e) => {
+										updateRule(index, {
+											showNotifications: e.currentTarget.checked,
+										});
+									}}
+								/>
+								Show notifications
+							</label>
+						</div>
+					))}
+
+					<button type="button" onClick={addRule} class="add-rule">
+						+ Add Rule
+					</button>
 				</fieldset>
 
 				<fieldset>
@@ -304,9 +390,17 @@ function App() {
 					</dl>
 				</fieldset>
 
-				{!isValidCron.value && (
+				{settings.value.rules.some((rule) => {
+					if (!rule.cronSchedule || !rule.cronSchedule.trim()) return true;
+					try {
+						CronExpressionParser.parse(rule.cronSchedule.trim());
+						return false;
+					} catch (_err) {
+						return true;
+					}
+				}) && (
 					<div id="msg" class="error">
-						Invalid cron expression
+						One or more rules have invalid cron expressions
 					</div>
 				)}
 
