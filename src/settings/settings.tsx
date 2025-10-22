@@ -4,7 +4,13 @@ import { signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
 
-import { DEFAULTS, type Rule, type Settings } from "../defaults";
+import {
+	DEFAULTS,
+	getMostRecentLastMoveTime,
+	getSettings,
+	type Rule,
+	type Settings,
+} from "../storage";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 type Status = {
@@ -15,7 +21,8 @@ type Status = {
 	nextMove: string;
 };
 
-const initialSettings = (await browser.storage.sync.get(DEFAULTS)) as Settings;
+const initialSettings = await getSettings();
+
 const settings = signal<Settings>(initialSettings);
 const status = signal<Status>({
 	actionable: 0,
@@ -46,15 +53,9 @@ async function updateStatus(): Promise<void> {
 	const alarm = await browser.alarms.get("moveActionableTabs");
 
 	// Find the most recent lastMoveTime across all rules
-	let mostRecentLastMoveTime = null;
-	for (const rule of settings.value.rules) {
-		if (
-			rule.lastMoveTime &&
-			(!mostRecentLastMoveTime || rule.lastMoveTime > mostRecentLastMoveTime)
-		) {
-			mostRecentLastMoveTime = rule.lastMoveTime;
-		}
-	}
+	const mostRecentLastMoveTime = getMostRecentLastMoveTime(
+		settings.value.rules,
+	);
 
 	status.value = {
 		actionable: actionableCount,
@@ -97,6 +98,12 @@ let debounceTimeout: number | null = null;
 let pendingChanges: Partial<Settings> = {};
 
 function autoSaveRules(rules: Rule[]): void {
+	// Validate that we have at least one rule
+	if (rules.length === 0) {
+		console.warn("Cannot save empty rules array, keeping current rules");
+		return;
+	}
+
 	settings.value = { ...settings.peek(), rules };
 	pendingChanges.rules = rules;
 
@@ -160,7 +167,7 @@ updateStatus();
 
 browser.storage.onChanged.addListener(async (changes, areaName) => {
 	if (areaName === "sync" && changes) {
-		const s = (await browser.storage.sync.get(DEFAULTS)) as Settings;
+		const s = await getSettings();
 		settings.value = s;
 		await updateStatus();
 	}

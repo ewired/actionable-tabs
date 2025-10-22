@@ -1,6 +1,6 @@
 /// <reference types="./ambient.d.ts" />
 
-import { DEFAULTS } from "./defaults.js";
+import { DEFAULTS, getSettings } from "./storage.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -75,26 +75,14 @@ export async function getTargetIndexForActionableTabs(moveDirection) {
  * @param {('left' | 'right') | undefined} manualMoveDirection - If specified, override moveCount to 1 and always show notifications
  */
 export async function moveActionableTabsToTop(manualMoveDirection) {
-	const settings = await browser.storage.sync.get(DEFAULTS);
+	const settings = await getSettings();
 
-	const queueMode = /** @type {string} */ (
-		/** @type {{queueMode?: string}} */ (settings).queueMode ||
-			/** @type {{queueMode: string}} */ (DEFAULTS).queueMode
-	);
+	// Use the first rule for manual operations
+	const rule = settings.rules[0] || DEFAULTS.rules[0];
 
-	const moveCount = manualMoveDirection
-		? 1
-		: /** @type {number} */ (
-				/** @type {{moveCount?: number}} */ (settings).moveCount ||
-					/** @type {{moveCount: number}} */ (DEFAULTS).moveCount
-			);
-
-	const moveDirection =
-		manualMoveDirection ||
-		/** @type {string} */ (
-			/** @type {{moveDirection?: string}} */ (settings).moveDirection ||
-				/** @type {{moveDirection: string}} */ (DEFAULTS).moveDirection
-		);
+	const queueMode = manualMoveDirection ? rule.queueMode : rule.queueMode;
+	const moveCount = manualMoveDirection ? 1 : rule.moveCount;
+	const moveDirection = manualMoveDirection || rule.moveDirection;
 
 	const actionableTabsData = await getActionableTabsSorted(queueMode);
 
@@ -156,7 +144,11 @@ export async function moveActionableTabsToTop(manualMoveDirection) {
 	const anyTabMoved = moveResults.some((result) => result.didMove);
 
 	if (!manualMoveDirection) {
-		await browser.storage.sync.set({ lastMoveTime: Date.now() });
+		// Update lastMoveTime for the rule that was executed
+		const updatedRules = settings.rules.map((r, index) =>
+			index === 0 ? { ...r, lastMoveTime: Date.now() } : r,
+		);
+		await browser.storage.sync.set({ rules: updatedRules });
 	}
 
 	if (manualMoveDirection) {
@@ -187,10 +179,7 @@ export async function moveActionableTabsToTop(manualMoveDirection) {
 			});
 		}
 	} else {
-		const shouldShowNotification =
-			anyTabMoved &&
-			/** @type {{showNotifications?: boolean}} */ (settings)
-				.showNotifications !== false;
+		const shouldShowNotification = anyTabMoved && rule.showNotifications;
 
 		if (shouldShowNotification) {
 			const { tab } = moveResults[0];

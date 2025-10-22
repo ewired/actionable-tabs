@@ -1,13 +1,33 @@
 /// <reference types="./ambient.d.ts" />
 
 import { CronExpressionParser } from "cron-parser";
-import { DEFAULTS } from "./defaults.js";
+import { getMostRecentLastMoveTime, getSettings } from "./storage.js";
 import {
 	clearAllActionableTabs,
 	getActionableTabsSorted,
 	getTargetIndexForActionableTabs,
 	moveActionableTabsToTop,
 } from "./tab.js";
+
+/**
+ * Get display text for queue mode
+ * @param {string} queueMode - The queue mode
+ * @returns {string} Display text for the queue mode
+ */
+function getQueueModeDisplayText(queueMode) {
+	switch (queueMode) {
+		case "oldest-first":
+			return "Oldest";
+		case "newest-first":
+			return "Newest";
+		case "leftmost-first":
+			return "Leftmost";
+		case "rightmost-first":
+			return "Rightmost";
+		default:
+			return "Actionable";
+	}
+}
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -27,7 +47,7 @@ const NON_ACTIONABLE_ICON_PATHS = {
 browser.runtime.onInstalled.addListener(async () => {
 	console.log("Actionable Tabs extension installed");
 
-	await initializeDefaultSettings();
+	await getSettings();
 	createContextMenus();
 	await scheduleNextMove();
 	await initializeIconsForAllTabs();
@@ -40,22 +60,11 @@ browser.runtime.onStartup.addListener(async () => {
 });
 
 /**
- * Initialize default settings
- */
-async function initializeDefaultSettings() {
-	const settings = await browser.storage.sync.get(DEFAULTS);
-	await browser.storage.sync.set(settings);
-}
-
-/**
  * Execute all rules in order
  */
 async function executeAllRules() {
-	const settings = await browser.storage.sync.get(DEFAULTS);
-	let rules =
-		/** @type {Array<{id: string, cronSchedule: string, queueMode: string, moveCount: number, moveDirection: string, showNotifications: boolean, lastMoveTime: number | null}>} */ (
-			settings.rules || DEFAULTS.rules
-		);
+	const settings = await getSettings();
+	let rules = settings.rules;
 
 	for (const rule of rules) {
 		console.log(`Executing rule ${rule.id} (${rule.cronSchedule})`);
@@ -154,23 +163,49 @@ async function moveActionableTabsForRule(rule) {
  */
 async function createContextMenus() {
 	await browser.contextMenus.removeAll();
-	browser.contextMenus.create({
-		id: "pull-actionable-tab-left",
-		title: "Pull Actionable Tab to Top/Left",
-		contexts: ["action"],
-	});
 
-	browser.contextMenus.create({
-		id: "pull-actionable-tab-right",
-		title: "Pull Actionable Tab to Bottom/Right",
-		contexts: ["action"],
-	});
+	const settings = await getSettings();
+	const rules = settings.rules;
 
-	browser.contextMenus.create({
-		id: "separator-1",
-		type: "separator",
-		contexts: ["action"],
-	});
+	// Create deduplicated menu items based on unique action combinations
+	const uniqueActions = new Map();
+
+	for (const rule of rules) {
+		const actionKey = `${rule.queueMode}-${rule.moveDirection}`;
+		if (!uniqueActions.has(actionKey)) {
+			uniqueActions.set(actionKey, {
+				queueMode: rule.queueMode,
+				moveDirection: rule.moveDirection,
+				ruleIds: [rule.id],
+			});
+		} else {
+			uniqueActions.get(actionKey).ruleIds.push(rule.id);
+		}
+	}
+
+	// Create menu items for each unique action
+	let menuItemIndex = 0;
+	for (const [actionKey, action] of uniqueActions) {
+		const { queueMode, moveDirection } = action;
+		const directionText =
+			moveDirection === "left" ? "Top/Left" : "Bottom/Right";
+		const queueModeText = getQueueModeDisplayText(queueMode);
+
+		browser.contextMenus.create({
+			id: `pull-actionable-tab-${actionKey}`,
+			title: `Pull ${queueModeText} Tab to ${directionText}`,
+			contexts: ["action"],
+		});
+		menuItemIndex++;
+	}
+
+	if (menuItemIndex > 0) {
+		browser.contextMenus.create({
+			id: "separator-1",
+			type: "separator",
+			contexts: ["action"],
+		});
+	}
 
 	browser.contextMenus.create({
 		id: "open-settings",
@@ -189,15 +224,20 @@ async function createContextMenus() {
  * Handle context menu clicks
  */
 browser.contextMenus.onClicked.addListener(async (info, _tab) => {
+	if (typeof info.menuItemId === "string") {
+		if (info.menuItemId.startsWith("pull-actionable-tab-")) {
+			// Extract the action key (queueMode-moveDirection)
+			const actionKey = info.menuItemId.replace("pull-actionable-tab-", "");
+			const [_queueMode, moveDirection] = actionKey.split("-");
+			// Ensure moveDirection is valid
+			if (moveDirection === "left" || moveDirection === "right") {
+				await moveActionableTabsToTop(moveDirection);
+			}
+			return;
+		}
+	}
+
 	switch (info.menuItemId) {
-		case "pull-actionable-tab-left": {
-			await moveActionableTabsToTop("left");
-			break;
-		}
-		case "pull-actionable-tab-right": {
-			await moveActionableTabsToTop("right");
-			break;
-		}
 		case "open-settings":
 			browser.runtime.openOptionsPage();
 			break;
@@ -340,10 +380,8 @@ browser.tabs.onUpdated.addListener(async (tabId) => {
  * Schedule the next automatic move based on cron settings
  */
 async function scheduleNextMove() {
-	const settings = await browser.storage.sync.get(DEFAULTS);
-	const rules = /** @type {Array<{cronSchedule: string}>} */ (
-		settings.rules || DEFAULTS.rules
-	);
+	const settings = await getSettings();
+	const rules = settings.rules;
 
 	// Find the next execution time across all rules
 	let nextExecutionTime = null;
@@ -459,22 +497,11 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
  * Called on browser startup to ensure idempotency across restarts
  */
 async function checkForMissedMovesAndCatchUp() {
-	const settings = await browser.storage.sync.get(DEFAULTS);
-	const rules =
-		/** @type {Array<{cronSchedule: string, lastMoveTime: number | null}>} */ (
-			settings.rules || DEFAULTS.rules
-		);
+	const settings = await getSettings();
+	const rules = settings.rules;
 
 	// Find the most recent lastMoveTime across all rules
-	let mostRecentLastMoveTime = null;
-	for (const rule of rules) {
-		if (
-			rule.lastMoveTime &&
-			(!mostRecentLastMoveTime || rule.lastMoveTime > mostRecentLastMoveTime)
-		) {
-			mostRecentLastMoveTime = rule.lastMoveTime;
-		}
-	}
+	const mostRecentLastMoveTime = getMostRecentLastMoveTime(rules);
 
 	if (!mostRecentLastMoveTime) {
 		console.log("No lastMoveTime found - skipping catch-up check");
@@ -522,8 +549,11 @@ async function checkForMissedMovesAndCatchUp() {
  * Listen for settings changes and reschedule
  */
 browser.storage.onChanged.addListener(async (changes, areaName) => {
-	if (areaName === "sync" && (changes.rules || changes.cronSchedule)) {
-		await scheduleNextMove();
+	if (areaName === "sync") {
+		if (changes.rules) {
+			await scheduleNextMove();
+			await createContextMenus();
+		}
 	}
 });
 
