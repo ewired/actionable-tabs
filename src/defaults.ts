@@ -1,15 +1,20 @@
 /**
  * Default settings for the Actionable Tabs extension
- * @type {{
- *   cronSchedule: string;
- *   queueMode: 'oldest-first' | 'newest-first' | 'leftmost-first' | 'rightmost-first';
- *   lastMoveTime: number | null;
- *   moveCount: number;
- *   moveDirection: 'left' | 'right';
- *   showNotifications: boolean;
- * }}
  */
-export const DEFAULTS = {
+export type Settings = {
+	cronSchedule: string;
+	queueMode:
+		| "oldest-first"
+		| "newest-first"
+		| "leftmost-first"
+		| "rightmost-first";
+	lastMoveTime: number | null;
+	moveCount: number;
+	moveDirection: "left" | "right";
+	showNotifications: boolean;
+};
+
+export const DEFAULTS: Settings = {
 	cronSchedule: "*/30 * * * *", // every 30 minutes
 	queueMode: "leftmost-first",
 	lastMoveTime: null,

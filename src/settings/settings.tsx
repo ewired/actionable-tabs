@@ -4,11 +4,9 @@ import { computed, signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
 
-import { DEFAULTS } from "../defaults.js";
+import { DEFAULTS, type Settings } from "../defaults";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
-
-type Settings = typeof DEFAULTS;
 type Status = {
 	actionable: number;
 	pinned: number;

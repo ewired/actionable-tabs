@@ -12,11 +12,11 @@ web-ext-artifacts/source.zip: src/ manifest.json Makefile package.json README.md
 out/manifest.json: manifest.json
 	cp manifest.json out/
 
-out/settings/settings.html: $(wildcard src/settings/*) src/defaults.js
+out/settings/settings.html: $(wildcard src/settings/*) src/defaults.ts
 	rm -r out/settings || true
 	bun build src/settings/settings.html --outdir=out/settings $(BUN_BUILD_OPTS)
 
-out/background.js: src/background.js src/defaults.js
+out/background.js: src/background.js src/defaults.ts src/tab.js
 	bun build src/background.js --outdir=out $(BUN_BUILD_OPTS)
 
 .PHONY: clean sign check lint knip fix
