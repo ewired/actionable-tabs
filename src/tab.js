@@ -72,9 +72,9 @@ async function getTargetIndexForActionableTabs(moveDirection) {
 
 /**
  * Move actionable tabs to top based on settings
- * @param {boolean} isManual - If true, override moveCount to 1 and always show notifications
+ * @param {('left' | 'right') | undefined} manualMoveDirection - If specified, override moveCount to 1 and always show notifications
  */
-export async function moveActionableTabsToTop(isManual = false) {
+export async function moveActionableTabsToTop(manualMoveDirection) {
 	const settings = await browser.storage.sync.get(DEFAULTS);
 
 	const queueMode = /** @type {string} */ (
@@ -82,24 +82,26 @@ export async function moveActionableTabsToTop(isManual = false) {
 			/** @type {{queueMode: string}} */ (DEFAULTS).queueMode
 	);
 
-	const moveCount = isManual
+	const moveCount = manualMoveDirection
 		? 1
 		: /** @type {number} */ (
 				/** @type {{moveCount?: number}} */ (settings).moveCount ||
 					/** @type {{moveCount: number}} */ (DEFAULTS).moveCount
 			);
 
-	const moveDirection = /** @type {string} */ (
-		/** @type {{moveDirection?: string}} */ (settings).moveDirection ||
-			/** @type {{moveDirection: string}} */ (DEFAULTS).moveDirection
-	);
+	const moveDirection =
+		manualMoveDirection ||
+		/** @type {string} */ (
+			/** @type {{moveDirection?: string}} */ (settings).moveDirection ||
+				/** @type {{moveDirection: string}} */ (DEFAULTS).moveDirection
+		);
 
 	const actionableTabsData = await getActionableTabsSorted(queueMode);
 
 	if (actionableTabsData.length === 0) {
 		console.log("No actionable tabs to move");
 
-		if (isManual) {
+		if (manualMoveDirection) {
 			browser.notifications.create({
 				type: "basic",
 				iconUrl: "icons/icon-on-48.png",
@@ -153,17 +155,19 @@ export async function moveActionableTabsToTop(isManual = false) {
 
 	const anyTabMoved = moveResults.some((result) => result.didMove);
 
-	if (!isManual) {
+	if (!manualMoveDirection) {
 		await browser.storage.sync.set({ lastMoveTime: Date.now() });
 	}
 
-	if (isManual) {
+	if (manualMoveDirection) {
 		if (anyTabMoved) {
 			const firstResult = moveResults[0];
+			const directionText =
+				moveDirection === "right" ? "bottom/right" : "top/left";
 			const message =
 				moveResults.length === 1
-					? `Pulled "${firstResult.tab.title}" to top`
-					: `Moved ${moveResults.length} actionable tab(s) to top`;
+					? `Pulled "${firstResult.tab.title}" to ${directionText}`
+					: `Moved ${moveResults.length} actionable tab(s) to ${directionText}`;
 
 			browser.notifications.create({
 				type: "basic",
@@ -173,11 +177,13 @@ export async function moveActionableTabsToTop(isManual = false) {
 			});
 		} else {
 			const firstResult = moveResults[0];
+			const directionText =
+				moveDirection === "right" ? "bottom/right" : "top/left";
 			browser.notifications.create({
 				type: "basic",
 				iconUrl: "icons/icon-on-48.png",
 				title: "Actionable Tabs",
-				message: `"${firstResult.tab.title}" is already at the top`,
+				message: `"${firstResult.tab.title}" is already at the ${directionText}`,
 			});
 		}
 	} else {
@@ -188,10 +194,12 @@ export async function moveActionableTabsToTop(isManual = false) {
 
 		if (shouldShowNotification) {
 			const { tab } = moveResults[0];
+			const directionText =
+				moveDirection === "right" ? "bottom/right" : "top/left";
 			const message =
 				moveResults.length === 1
-					? `Pulled "${tab.title}" to top`
-					: `Moved ${moveResults.length} actionable tab(s) to top`;
+					? `Pulled "${tab.title}" to ${directionText}`
+					: `Moved ${moveResults.length} actionable tab(s) to ${directionText}`;
 
 			browser.notifications.create({
 				type: "basic",

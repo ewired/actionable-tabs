@@ -48,8 +48,14 @@ async function initializeDefaultSettings() {
 async function createContextMenus() {
 	await browser.contextMenus.removeAll();
 	browser.contextMenus.create({
-		id: "pull-actionable-tab",
-		title: "Pull Actionable Tab to Top",
+		id: "pull-actionable-tab-left",
+		title: "Pull Actionable Tab to Top/Left",
+		contexts: ["action"],
+	});
+
+	browser.contextMenus.create({
+		id: "pull-actionable-tab-right",
+		title: "Pull Actionable Tab to Bottom/Right",
 		contexts: ["action"],
 	});
 
@@ -77,8 +83,12 @@ async function createContextMenus() {
  */
 browser.contextMenus.onClicked.addListener(async (info, _tab) => {
 	switch (info.menuItemId) {
-		case "pull-actionable-tab": {
-			await moveActionableTabsToTop(true);
+		case "pull-actionable-tab-left": {
+			await moveActionableTabsToTop("left");
+			break;
+		}
+		case "pull-actionable-tab-right": {
+			await moveActionableTabsToTop("right");
 			break;
 		}
 		case "open-settings":
@@ -350,7 +360,7 @@ async function checkForMissedMovesAndCatchUp() {
 			`Found ${missedMoves} missed scheduled move(s) - executing catch-up`,
 		);
 
-		await moveActionableTabsToTop();
+		await moveActionableTabsToTop(undefined);
 
 		await browser.storage.sync.set({ lastMoveTime: Date.now() });
 
@@ -376,7 +386,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
  */
 browser.alarms.onAlarm.addListener(async (alarm) => {
 	if (alarm.name === "moveActionableTabs") {
-		await moveActionableTabsToTop();
+		await moveActionableTabsToTop(undefined);
 		await scheduleNextMove();
 	}
 });
