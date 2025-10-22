@@ -2,6 +2,7 @@
 
 import { CronExpressionParser } from "cron-parser";
 import { DEFAULTS } from "./defaults.js";
+import { clearAllActionableTabs, moveActionableTabsToTop } from "./tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -76,9 +77,10 @@ async function createContextMenus() {
  */
 browser.contextMenus.onClicked.addListener(async (info, _tab) => {
 	switch (info.menuItemId) {
-		case "pull-actionable-tab":
+		case "pull-actionable-tab": {
 			await moveActionableTabsToTop(true);
 			break;
+		}
 		case "open-settings":
 			browser.runtime.openOptionsPage();
 			break;
@@ -379,185 +381,6 @@ browser.alarms.onAlarm.addListener(async (alarm) => {
 	}
 });
 
-/**
- * Get actionable tabs sorted according to queue mode
- * @param {string} queueMode - The queue mode setting
- * @returns {Promise<Array<{tabId: number, data: {markedAt: number}, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>>}
- */
-async function getActionableTabsSorted(queueMode) {
-	const allTabs = await browser.tabs.query({ currentWindow: true });
-	const validTabs =
-		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
-			allTabs.filter((t) => t.id != null)
-		);
-
-	const actionableTabsData = [];
-	for (const tab of validTabs) {
-		const actionableData = /** @type {{ markedAt: number } | undefined} */ (
-			await browser.sessions.getTabValue(tab.id, "actionable")
-		);
-		if (actionableData) {
-			actionableTabsData.push({
-				tabId: tab.id,
-				data: actionableData,
-				tab: tab,
-			});
-		}
-	}
-
-	switch (queueMode) {
-		case "oldest-first":
-			actionableTabsData.sort((a, b) => a.data.markedAt - b.data.markedAt);
-			break;
-		case "newest-first":
-			actionableTabsData.sort((a, b) => b.data.markedAt - a.data.markedAt);
-			break;
-		case "leftmost-first":
-			actionableTabsData.sort((a, b) => a.tab.index - b.tab.index);
-			break;
-		case "rightmost-first":
-			actionableTabsData.sort((a, b) => b.tab.index - a.tab.index);
-			break;
-	}
-
-	return actionableTabsData;
-}
-
-/**
- * Get the target index for moving actionable tabs (after pinned tabs)
- * @returns {Promise<number>}
- */
-async function getTargetIndexForActionableTabs() {
-	const allTabs = await browser.tabs.query({ currentWindow: true });
-	const validTabs =
-		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
-			allTabs.filter((t) => t.id != null)
-		);
-	const pinnedTabs = validTabs.filter((t) => t.pinned);
-	return pinnedTabs.length;
-}
-
-/**
- * Move actionable tabs to top based on settings
- * @param {boolean} isManual - If true, override moveCount to 1 and always show notifications
- */
-async function moveActionableTabsToTop(isManual = false) {
-	const settings = await browser.storage.sync.get(DEFAULTS);
-	const queueMode = /** @type {string} */ (
-		settings.queueMode || DEFAULTS.queueMode
-	);
-
-	const moveCount = isManual
-		? 1
-		: /** @type {number} */ (settings.moveCount || DEFAULTS.moveCount);
-
-	const actionableTabsData = await getActionableTabsSorted(queueMode);
-
-	if (actionableTabsData.length === 0) {
-		console.log("No actionable tabs to move");
-
-		if (isManual) {
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: "No actionable tabs to pull",
-			});
-		}
-		return;
-	}
-
-	const targetIndex = await getTargetIndexForActionableTabs();
-	const tabsToMove = actionableTabsData.slice(0, moveCount);
-
-	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
-	const moveResults = [];
-
-	for (let i = 0; i < tabsToMove.length; i++) {
-		const { tabId, tab } = tabsToMove[i];
-		const oldIndex = tab.index;
-		const desiredIndex = targetIndex + i;
-
-		try {
-			const movedTab = await browser.tabs.move(tabId, { index: desiredIndex });
-			const newIndex = Array.isArray(movedTab)
-				? movedTab[0].index
-				: movedTab.index;
-
-			const didMove = oldIndex !== newIndex;
-			moveResults.push({ tabId, tab, oldIndex, newIndex, didMove });
-
-			if (didMove) {
-				console.log(
-					`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
-				);
-			} else {
-				console.log(
-					`Tab ${tabId} (${tab.title}) already at correct index ${newIndex}`,
-				);
-			}
-		} catch (error) {
-			console.error(`Error moving tab ${tabId}:`, error);
-			moveResults.push({
-				tabId,
-				tab,
-				oldIndex,
-				newIndex: oldIndex,
-				didMove: false,
-			});
-		}
-	}
-
-	const anyTabMoved = moveResults.some((result) => result.didMove);
-
-	if (!isManual) {
-		await browser.storage.sync.set({ lastMoveTime: Date.now() });
-	}
-
-	if (isManual) {
-		if (anyTabMoved) {
-			const firstResult = moveResults[0];
-			const message =
-				moveResults.length === 1
-					? `Pulled "${firstResult.tab.title}" to top`
-					: `Moved ${moveResults.length} actionable tab(s) to top`;
-
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: message,
-			});
-		} else {
-			const firstResult = moveResults[0];
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: `"${firstResult.tab.title}" is already at the top`,
-			});
-		}
-	} else {
-		const shouldShowNotification =
-			anyTabMoved && settings.showNotifications !== false;
-
-		if (shouldShowNotification) {
-			const { tab } = moveResults[0];
-			const message =
-				moveResults.length === 1
-					? `Pulled "${tab.title}" to top`
-					: `Moved ${moveResults.length} actionable tab(s) to top`;
-
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: message,
-			});
-		}
-	}
-}
-
 browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	(async () => {
 		if (
@@ -579,43 +402,3 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 	})().then((r) => sendResponse(r));
 	return true;
 });
-
-/**
- * Clear all actionable tabs by removing the actionable session data
- * @returns {Promise<number>} Number of tabs that were cleared
- */
-async function clearAllActionableTabs() {
-	const allTabs = await browser.tabs.query({ currentWindow: true });
-	const validTabs = allTabs.filter((t) => t.id != null);
-
-	let clearedCount = 0;
-
-	for (const tab of validTabs) {
-		const tabId = /** @type {number} */ (tab.id);
-		try {
-			const actionableData = await browser.sessions.getTabValue(
-				tabId,
-				"actionable",
-			);
-			if (actionableData) {
-				await browser.sessions.removeTabValue(tabId, "actionable");
-				await updateIconForTab(tabId, false);
-				clearedCount++;
-				console.log(`Cleared actionable state for tab ${tabId} (${tab.title})`);
-			}
-		} catch (error) {
-			console.error(`Error clearing actionable state for tab ${tabId}:`, error);
-		}
-	}
-
-	if (clearedCount > 0) {
-		browser.notifications.create({
-			type: "basic",
-			iconUrl: "icons/icon-off-48.png",
-			title: "Actionable Tabs",
-			message: `Cleared ${clearedCount} actionable tab(s)`,
-		});
-	}
-
-	return clearedCount;
-}
