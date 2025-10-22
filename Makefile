@@ -19,7 +19,7 @@ out/settings/settings.html: $(wildcard src/settings/*) src/defaults.js
 out/background.js: src/background.js src/defaults.js
 	bun build src/background.js --outdir=out $(BUN_BUILD_OPTS)
 
-.PHONY: clean sign
+.PHONY: clean sign check lint knip fix
 clean:
 	rm -rf out web-ext-artifacts
 
@@ -27,3 +27,14 @@ sign: web-ext-artifacts/webext.zip web-ext-artifacts/source.zip
 	@bun x web-ext sign \
     	--api-key $(JWT_ISSUER) --api-secret $(JWT_SECRET) \
         -s out/ --upload-source-code ./web-ext-artifacts/source.zip --channel unlisted
+
+check:
+	bunx tsc --noEmit
+
+lint:
+	bunx --bun biome check --fix
+
+knip:
+	bunx knip --fix --fix-type types --fix-type exports
+
+fix: check lint knip
