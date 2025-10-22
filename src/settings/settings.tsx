@@ -11,6 +11,7 @@ import {
 	type Rule,
 	type Settings,
 } from "../storage";
+import { getContextMenuTitle } from "../tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 type Status = {
@@ -373,6 +374,13 @@ function App() {
 								/>
 								Show notifications
 							</label>
+
+							<div class="context-menu-info">
+								<strong>Context Menu:</strong> Right-click on the Actionable
+								Tabs icon and select "
+								{getContextMenuTitle(rule.queueMode, rule.moveDirection)}" to
+								run the rule on one tab on demand.
+							</div>
 						</div>
 					))}
 

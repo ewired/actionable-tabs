@@ -5,29 +5,11 @@ import { getMostRecentLastMoveTime, getSettings } from "./storage.js";
 import {
 	clearAllActionableTabs,
 	getActionableTabsSorted,
+	getContextMenuTitle,
 	getTargetIndexForActionableTabs,
-	moveActionableTabsToTop,
+	moveActionableTabManually,
+	moveActionableTabs,
 } from "./tab.js";
-
-/**
- * Get display text for queue mode
- * @param {string} queueMode - The queue mode
- * @returns {string} Display text for the queue mode
- */
-function getQueueModeDisplayText(queueMode) {
-	switch (queueMode) {
-		case "oldest-first":
-			return "Oldest";
-		case "newest-first":
-			return "Newest";
-		case "leftmost-first":
-			return "Leftmost";
-		case "rightmost-first":
-			return "Rightmost";
-		default:
-			return "Actionable";
-	}
-}
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -102,52 +84,23 @@ async function moveActionableTabsForRule(rule) {
 	const targetIndex = await getTargetIndexForActionableTabs(rule.moveDirection);
 	const tabsToMove = actionableTabsData.slice(0, rule.moveCount);
 
-	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
-	const moveResults = [];
+	// Use shared function to move tabs
+	const moveResults = await moveActionableTabs({
+		actionableTabsData: tabsToMove,
+		targetIndex: targetIndex,
+	});
 
-	for (let i = 0; i < tabsToMove.length; i++) {
-		const { tabId, tab } = tabsToMove[i];
-		const oldIndex = tab.index;
-		const desiredIndex = targetIndex + i;
-
-		try {
-			const movedTab = await browser.tabs.move(tabId, { index: desiredIndex });
-			const newIndex = Array.isArray(movedTab)
-				? movedTab[0].index
-				: movedTab.index;
-
-			const didMove = oldIndex !== newIndex;
-			moveResults.push({ tabId, tab, oldIndex, newIndex, didMove });
-
-			if (didMove) {
-				console.log(
-					`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex} for rule ${rule.id}`,
-				);
-			} else {
-				console.log(
-					`Tab ${tabId} (${tab.title}) already at correct index ${newIndex} for rule ${rule.id}`,
-				);
-			}
-		} catch (error) {
-			console.error(`Error moving tab ${tabId} for rule ${rule.id}:`, error);
-			moveResults.push({
-				tabId,
-				tab,
-				oldIndex,
-				newIndex: oldIndex,
-				didMove: false,
-			});
-		}
-	}
-
+	// Handle rule-specific notifications
 	const anyTabMoved = moveResults.some((result) => result.didMove);
 
 	if (anyTabMoved && rule.showNotifications) {
 		const { tab } = moveResults[0];
+		const directionText =
+			rule.moveDirection === "right" ? "bottom/right" : "top/left";
 		const message =
 			moveResults.length === 1
-				? `Pulled "${tab.title}" to top`
-				: `Moved ${moveResults.length} actionable tab(s) to top`;
+				? `Pulled "${tab.title}" to ${directionText}`
+				: `Moved ${moveResults.length} actionable tab(s) to ${directionText}`;
 
 		browser.notifications.create({
 			type: "basic",
@@ -159,11 +112,10 @@ async function moveActionableTabsForRule(rule) {
 }
 
 /**
- * Create context menu items
+ * Create context menu items dynamically based on rules
  */
 async function createContextMenus() {
 	await browser.contextMenus.removeAll();
-
 	const settings = await getSettings();
 	const rules = settings.rules;
 
@@ -171,7 +123,7 @@ async function createContextMenus() {
 	const uniqueActions = new Map();
 
 	for (const rule of rules) {
-		const actionKey = `${rule.queueMode}-${rule.moveDirection}`;
+		const actionKey = `${rule.queueMode}_${rule.moveDirection}`;
 		if (!uniqueActions.has(actionKey)) {
 			uniqueActions.set(actionKey, {
 				queueMode: rule.queueMode,
@@ -187,13 +139,11 @@ async function createContextMenus() {
 	let menuItemIndex = 0;
 	for (const [actionKey, action] of uniqueActions) {
 		const { queueMode, moveDirection } = action;
-		const directionText =
-			moveDirection === "left" ? "Top/Left" : "Bottom/Right";
-		const queueModeText = getQueueModeDisplayText(queueMode);
+		const title = getContextMenuTitle(queueMode, moveDirection);
 
 		browser.contextMenus.create({
-			id: `pull-actionable-tab-${actionKey}`,
-			title: `Pull ${queueModeText} Tab to ${directionText}`,
+			id: `pull-actionable-tab_${actionKey}`,
+			title: title,
 			contexts: ["action"],
 		});
 		menuItemIndex++;
@@ -224,20 +174,31 @@ async function createContextMenus() {
  * Handle context menu clicks
  */
 browser.contextMenus.onClicked.addListener(async (info, _tab) => {
-	if (typeof info.menuItemId === "string") {
-		if (info.menuItemId.startsWith("pull-actionable-tab-")) {
-			// Extract the action key (queueMode-moveDirection)
-			const actionKey = info.menuItemId.replace("pull-actionable-tab-", "");
-			const [_queueMode, moveDirection] = actionKey.split("-");
-			// Ensure moveDirection is valid
-			if (moveDirection === "left" || moveDirection === "right") {
-				await moveActionableTabsToTop(moveDirection);
-			}
-			return;
+	const menuItemId = info.menuItemId;
+
+	if (
+		typeof menuItemId === "string" &&
+		menuItemId.startsWith("pull-actionable-tab_")
+	) {
+		// Extract queueMode and moveDirection from the menu item ID
+		const actionKey = menuItemId.replace("pull-actionable-tab_", "");
+		const [queueMode, moveDirection] = actionKey.split("_");
+
+		try {
+			await moveActionableTabManually({ queueMode, moveDirection });
+		} catch (error) {
+			console.error("Error moving actionable tab manually:", error);
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-off-48.png",
+				title: "Actionable Tabs",
+				message: "Failed to move actionable tab",
+			});
 		}
+		return;
 	}
 
-	switch (info.menuItemId) {
+	switch (menuItemId) {
 		case "open-settings":
 			browser.runtime.openOptionsPage();
 			break;
