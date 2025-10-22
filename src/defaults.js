@@ -9,9 +9,9 @@
  * }}
  */
 export const DEFAULTS = {
-    cronSchedule: '*/30 * * * *', // every 30 minutes
-    queueMode: 'leftmost-first',
-    lastMoveTime: null,
-    moveCount: 1, // how many actionable tabs to move per cron execution
-    showNotifications: true
+	cronSchedule: "*/30 * * * *", // every 30 minutes
+	queueMode: "leftmost-first",
+	lastMoveTime: null,
+	moveCount: 1, // how many actionable tabs to move per cron execution
+	showNotifications: true,
 };

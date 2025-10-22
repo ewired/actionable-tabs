@@ -1,156 +1,156 @@
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
 }
 
 body {
-    font: 14px/1.4 -apple-system, sans-serif;
-    padding: 20px;
-    max-width: 600px;
+	font:
+		14px / 1.4 -apple-system,
+		sans-serif;
+	padding: 20px;
+	max-width: 600px;
 }
 
 h1 {
-    font: bold 24px/1.2 monospace;
-    border: 3px solid #000;
-    padding: 10px;
-    margin-bottom: 20px;
-    letter-spacing: 2px;
+	font: bold 24px / 1.2 monospace;
+	border: 3px solid #000;
+	padding: 10px;
+	margin-bottom: 20px;
+	letter-spacing: 2px;
 }
 
 fieldset {
-    border: 2px solid #000;
-    padding: 15px;
-    margin-bottom: 15px;
+	border: 2px solid #000;
+	padding: 15px;
+	margin-bottom: 15px;
 }
 
 legend {
-    font-weight: bold;
-    padding: 0 5px;
-    text-transform: uppercase;
+	font-weight: bold;
+	padding: 0 5px;
+	text-transform: uppercase;
 }
 
 label {
-    display: block;
-    margin-bottom: 15px;
-    font-weight: 500;
+	display: block;
+	margin-bottom: 15px;
+	font-weight: 500;
 }
 
 label + label {
-    margin-top: 5px;
+	margin-top: 5px;
 }
 
-
-
 small {
-    display: block;
-    color: #666;
-    margin-top: 3px;
-    font-size: 12px;
+	display: block;
+	color: #666;
+	margin-top: 3px;
+	font-size: 12px;
 }
 
 input[type="text"],
 input[type="number"],
 select {
-    display: block;
-    width: 100%;
-    border: 2px solid #000;
-    padding: 8px;
-    margin-top: 3px;
-    font: 13px monospace;
-    background: #fff;
+	display: block;
+	width: 100%;
+	border: 2px solid #000;
+	padding: 8px;
+	margin-top: 3px;
+	font: 13px monospace;
+	background: #fff;
 }
 
 input[type="text"]:focus,
 input[type="number"]:focus,
 select:focus {
-    outline: 3px solid #000;
-    outline-offset: 2px;
+	outline: 3px solid #000;
+	outline-offset: 2px;
 }
 
 input.invalid {
-    border-color: #f00;
-    background: #fee;
+	border-color: #f00;
+	background: #fee;
 }
 
 input[type="number"] {
-    width: 80px;
+	width: 80px;
 }
 
 input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    vertical-align: middle;
-    margin-right: 8px;
+	width: 18px;
+	height: 18px;
+	vertical-align: middle;
+	margin-right: 8px;
 }
 
 dl {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 8px 15px;
-    font: 13px monospace;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 8px 15px;
+	font: 13px monospace;
 }
 
 dt {
-    font-weight: bold;
+	font-weight: bold;
 }
 
 dt::after {
-    content: ':';
+	content: ":";
 }
 
 button {
-    border: 2px solid #000;
-    background: #fff;
-    padding: 10px 20px;
-    font: bold 13px monospace;
-    cursor: pointer;
-    margin-right: 10px;
+	border: 2px solid #000;
+	background: #fff;
+	padding: 10px 20px;
+	font: bold 13px monospace;
+	cursor: pointer;
+	margin-right: 10px;
 }
 
 button:hover {
-    background: #000;
-    color: #fff;
+	background: #000;
+	color: #fff;
 }
 
 button:active {
-    transform: translateY(1px);
+	transform: translateY(1px);
 }
 
 button[type="submit"] {
-    background: #000;
-    color: #fff;
+	background: #000;
+	color: #fff;
 }
 
 button[type="submit"]:hover {
-    background: #fff;
-    color: #000;
+	background: #fff;
+	color: #000;
 }
 
 button#clearActionable {
-    background: #fff;
-    color: #d00;
-    border-color: #d00;
+	background: #fff;
+	color: #d00;
+	border-color: #d00;
 }
 
 button#clearActionable:hover {
-    background: #d00;
-    color: #fff;
+	background: #d00;
+	color: #fff;
 }
 
 #msg {
-    border: 2px solid #000;
-    padding: 10px;
-    margin-bottom: 15px;
-    min-height: 20px;
-    font-weight: bold;
+	border: 2px solid #000;
+	padding: 10px;
+	margin-bottom: 15px;
+	min-height: 20px;
+	font-weight: bold;
 }
 
 #msg:empty {
-    display: none;
+	display: none;
 }
 
 #msg.error {
-    background: #000;
-    color: #fff;
+	background: #000;
+	color: #fff;
 }
