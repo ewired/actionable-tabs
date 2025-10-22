@@ -259,6 +259,20 @@ function App() {
 							required
 						/>
 					</label>
+					<label>
+						Move Direction
+						<select
+							value={settings.value.moveDirection}
+							onChange={(e) => {
+								const value = e.currentTarget.value as "left" | "right";
+								autoSave("moveDirection", value);
+							}}
+						>
+							<option value="left">Left (after pinned tabs)</option>
+							<option value="right">Right (end of tab strip)</option>
+						</select>
+						<small>Where to move actionable tabs</small>
+					</label>
 				</fieldset>
 
 				<fieldset>

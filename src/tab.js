@@ -49,17 +49,25 @@ async function getActionableTabsSorted(queueMode) {
 }
 
 /**
- * Get the target index for moving actionable tabs (after pinned tabs)
+ * Get the target index for moving actionable tabs based on moveDirection setting
+ * @param {string} moveDirection - The move direction setting ('left' or 'right')
  * @returns {Promise<number>}
  */
-async function getTargetIndexForActionableTabs() {
+async function getTargetIndexForActionableTabs(moveDirection) {
 	const allTabs = await browser.tabs.query({ currentWindow: true });
 	const validTabs =
 		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
 			allTabs.filter((t) => t.id != null)
 		);
-	const pinnedTabs = validTabs.filter((t) => t.pinned);
-	return pinnedTabs.length;
+
+	if (moveDirection === "right") {
+		// Move to the end of the tab strip
+		return validTabs.length;
+	} else {
+		// Move to the left (after pinned tabs) - default behavior
+		const pinnedTabs = validTabs.filter((t) => t.pinned);
+		return pinnedTabs.length;
+	}
 }
 
 /**
@@ -81,6 +89,11 @@ export async function moveActionableTabsToTop(isManual = false) {
 					/** @type {{moveCount: number}} */ (DEFAULTS).moveCount
 			);
 
+	const moveDirection = /** @type {string} */ (
+		/** @type {{moveDirection?: string}} */ (settings).moveDirection ||
+			/** @type {{moveDirection: string}} */ (DEFAULTS).moveDirection
+	);
+
 	const actionableTabsData = await getActionableTabsSorted(queueMode);
 
 	if (actionableTabsData.length === 0) {
@@ -97,7 +110,7 @@ export async function moveActionableTabsToTop(isManual = false) {
 		return;
 	}
 
-	const targetIndex = await getTargetIndexForActionableTabs();
+	const targetIndex = await getTargetIndexForActionableTabs(moveDirection);
 	const tabsToMove = actionableTabsData.slice(0, moveCount);
 
 	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
