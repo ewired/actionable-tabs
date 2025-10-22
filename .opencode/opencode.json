@@ -1,0 +1,15 @@
+{
+	"$schema": "https://opencode.ai/config.json",
+	"formatter": {
+		"biome": {
+			"command": ["bunx", "--bun", "biome", "format", "$FILE"],
+			"extensions": [".js", ".ts", ".jsx", ".tsx", ".json", ".html"]
+		}
+	},
+	"lsp": {
+		"biome": {
+			"command": ["bunx", "--bun", "biome", "lsp-proxy"],
+			"extensions": [".js", ".ts", ".jsx", ".tsx", ".json", ".html"]
+		}
+	}
+}
