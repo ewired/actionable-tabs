@@ -569,6 +569,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 		} else if (message.action === "clearAllActionableTabs") {
 			try {
 				const clearedCount = await clearAllActionableTabs();
+				await initializeIconsForAllTabs();
 				return { success: true, clearedCount };
 			} catch (error) {
 				console.error("Error clearing all actionable tabs:", error);
