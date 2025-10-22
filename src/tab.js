@@ -9,7 +9,7 @@ if (typeof browser === "undefined") globalThis.browser = chrome;
  * @param {string} queueMode - The queue mode setting
  * @returns {Promise<Array<{tabId: number, data: {markedAt: number}, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>>}
  */
-async function getActionableTabsSorted(queueMode) {
+export async function getActionableTabsSorted(queueMode) {
 	const allTabs = await browser.tabs.query({ currentWindow: true });
 	const validTabs =
 		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
@@ -53,7 +53,7 @@ async function getActionableTabsSorted(queueMode) {
  * @param {string} moveDirection - The move direction setting ('left' or 'right')
  * @returns {Promise<number>}
  */
-async function getTargetIndexForActionableTabs(moveDirection) {
+export async function getTargetIndexForActionableTabs(moveDirection) {
 	const allTabs = await browser.tabs.query({ currentWindow: true });
 	const validTabs =
 		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (

@@ -2,7 +2,12 @@
 
 import { CronExpressionParser } from "cron-parser";
 import { DEFAULTS } from "./defaults.js";
-import { clearAllActionableTabs, moveActionableTabsToTop } from "./tab.js";
+import {
+	clearAllActionableTabs,
+	getActionableTabsSorted,
+	getTargetIndexForActionableTabs,
+	moveActionableTabsToTop,
+} from "./tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
@@ -40,6 +45,108 @@ browser.runtime.onStartup.addListener(async () => {
 async function initializeDefaultSettings() {
 	const settings = await browser.storage.sync.get(DEFAULTS);
 	await browser.storage.sync.set(settings);
+}
+
+/**
+ * Execute all rules in order
+ */
+async function executeAllRules() {
+	const settings = await browser.storage.sync.get(DEFAULTS);
+	let rules =
+		/** @type {Array<{id: string, cronSchedule: string, queueMode: string, moveCount: number, moveDirection: string, showNotifications: boolean, lastMoveTime: number | null}>} */ (
+			settings.rules || DEFAULTS.rules
+		);
+
+	for (const rule of rules) {
+		console.log(`Executing rule ${rule.id} (${rule.cronSchedule})`);
+		try {
+			await moveActionableTabsForRule(rule);
+			// Update the lastMoveTime for this specific rule
+			rules = rules.map((r) =>
+				r.id === rule.id ? { ...r, lastMoveTime: Date.now() } : r,
+			);
+		} catch (error) {
+			console.error(`Error executing rule ${rule.id}:`, error);
+			// Continue with next rule even if this one failed
+		}
+	}
+
+	// Save all updated rules at once
+	await browser.storage.sync.set({ rules: structuredClone(rules) });
+
+	// Reschedule the next move to ensure the alarm schedule is up-to-date
+	await scheduleNextMove();
+}
+
+/**
+ * Move actionable tabs for a specific rule
+ * @param {{id: string, cronSchedule: string, queueMode: string, moveCount: number, moveDirection: string, showNotifications: boolean, lastMoveTime: number | null}} rule - The rule to execute
+ */
+async function moveActionableTabsForRule(rule) {
+	const actionableTabsData = await getActionableTabsSorted(rule.queueMode);
+
+	if (actionableTabsData.length === 0) {
+		console.log(`No actionable tabs to move for rule ${rule.id}`);
+		return;
+	}
+
+	const targetIndex = await getTargetIndexForActionableTabs(rule.moveDirection);
+	const tabsToMove = actionableTabsData.slice(0, rule.moveCount);
+
+	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
+	const moveResults = [];
+
+	for (let i = 0; i < tabsToMove.length; i++) {
+		const { tabId, tab } = tabsToMove[i];
+		const oldIndex = tab.index;
+		const desiredIndex = targetIndex + i;
+
+		try {
+			const movedTab = await browser.tabs.move(tabId, { index: desiredIndex });
+			const newIndex = Array.isArray(movedTab)
+				? movedTab[0].index
+				: movedTab.index;
+
+			const didMove = oldIndex !== newIndex;
+			moveResults.push({ tabId, tab, oldIndex, newIndex, didMove });
+
+			if (didMove) {
+				console.log(
+					`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex} for rule ${rule.id}`,
+				);
+			} else {
+				console.log(
+					`Tab ${tabId} (${tab.title}) already at correct index ${newIndex} for rule ${rule.id}`,
+				);
+			}
+		} catch (error) {
+			console.error(`Error moving tab ${tabId} for rule ${rule.id}:`, error);
+			moveResults.push({
+				tabId,
+				tab,
+				oldIndex,
+				newIndex: oldIndex,
+				didMove: false,
+			});
+		}
+	}
+
+	const anyTabMoved = moveResults.some((result) => result.didMove);
+
+	if (anyTabMoved && rule.showNotifications) {
+		const { tab } = moveResults[0];
+		const message =
+			moveResults.length === 1
+				? `Pulled "${tab.title}" to top`
+				: `Moved ${moveResults.length} actionable tab(s) to top`;
+
+		browser.notifications.create({
+			type: "basic",
+			iconUrl: "icons/icon-on-48.png",
+			title: "Actionable Tabs",
+			message: message,
+		});
+	}
 }
 
 /**
@@ -234,11 +341,23 @@ browser.tabs.onUpdated.addListener(async (tabId) => {
  */
 async function scheduleNextMove() {
 	const settings = await browser.storage.sync.get(DEFAULTS);
-	const cronSchedule = /** @type {string} */ (
-		settings.cronSchedule || DEFAULTS.cronSchedule
+	const rules = /** @type {Array<{cronSchedule: string}>} */ (
+		settings.rules || DEFAULTS.rules
 	);
 
-	const delayMinutes = parseCronToNextDelay(cronSchedule);
+	// Find the next execution time across all rules
+	let nextExecutionTime = null;
+	let nextDelayMinutes = 30; // default fallback
+
+	for (const rule of rules) {
+		const delayMinutes = parseCronToNextDelay(rule.cronSchedule);
+		const executionTime = Date.now() + delayMinutes * 60 * 1000;
+
+		if (!nextExecutionTime || executionTime < nextExecutionTime) {
+			nextExecutionTime = executionTime;
+			nextDelayMinutes = delayMinutes;
+		}
+	}
 
 	// Ensure minimum delay to prevent scheduling issues
 	nextDelayMinutes = Math.max(1, nextDelayMinutes);
@@ -246,10 +365,10 @@ async function scheduleNextMove() {
 	await browser.alarms.clear("moveActionableTabs");
 
 	await browser.alarms.create("moveActionableTabs", {
-		delayInMinutes: delayMinutes,
+		delayInMinutes: nextDelayMinutes,
 	});
 
-	console.log(`Scheduled next move in ${delayMinutes} minutes`);
+	console.log(`Scheduled next move in ${nextDelayMinutes} minutes`);
 }
 
 /**
@@ -341,34 +460,58 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
  */
 async function checkForMissedMovesAndCatchUp() {
 	const settings = await browser.storage.sync.get(DEFAULTS);
-	const lastMoveTime = /** @type {number | null} */ (settings.lastMoveTime);
+	const rules =
+		/** @type {Array<{cronSchedule: string, lastMoveTime: number | null}>} */ (
+			settings.rules || DEFAULTS.rules
+		);
 
-	if (!lastMoveTime) {
+	// Find the most recent lastMoveTime across all rules
+	let mostRecentLastMoveTime = null;
+	for (const rule of rules) {
+		if (
+			rule.lastMoveTime &&
+			(!mostRecentLastMoveTime || rule.lastMoveTime > mostRecentLastMoveTime)
+		) {
+			mostRecentLastMoveTime = rule.lastMoveTime;
+		}
+	}
+
+	if (!mostRecentLastMoveTime) {
 		console.log("No lastMoveTime found - skipping catch-up check");
 		return;
 	}
 
-	const cronSchedule = /** @type {string} */ (
-		settings.cronSchedule || DEFAULTS.cronSchedule
-	);
-
 	console.log(
-		`Checking for missed moves since ${new Date(lastMoveTime).toISOString()}`,
+		`Checking for missed moves since ${new Date(mostRecentLastMoveTime).toISOString()}`,
 	);
 
-	const missedMoves = calculateMissedMoves(cronSchedule, lastMoveTime);
+	// Check each rule for missed moves
+	let totalMissedMoves = 0;
+	for (const rule of rules) {
+		// Skip rules that have never run (lastMoveTime is null)
+		if (!rule.lastMoveTime) {
+			continue;
+		}
 
-	if (missedMoves > 0) {
+		const missedMoves = calculateMissedMoves(
+			rule.cronSchedule,
+			rule.lastMoveTime,
+		);
+		if (missedMoves > 0) {
+			console.log(`Rule ${rule.id}: ${missedMoves} missed move(s) detected`);
+		}
+		totalMissedMoves += missedMoves;
+	}
+
+	if (totalMissedMoves > 0) {
 		console.log(
-			`Found ${missedMoves} missed scheduled move(s) - executing catch-up`,
+			`Found ${totalMissedMoves} missed scheduled move(s) across all rules - executing catch-up`,
 		);
 
-		await moveActionableTabsToTop(undefined);
-
-		await browser.storage.sync.set({ lastMoveTime: Date.now() });
+		await executeAllRules();
 
 		console.log(
-			`Catch-up complete - brought ${missedMoves} missed move(s) current`,
+			`Catch-up complete - brought ${totalMissedMoves} missed move(s) current`,
 		);
 	} else {
 		console.log("No missed moves detected");
@@ -379,7 +522,7 @@ async function checkForMissedMovesAndCatchUp() {
  * Listen for settings changes and reschedule
  */
 browser.storage.onChanged.addListener(async (changes, areaName) => {
-	if (areaName === "sync" && changes.cronSchedule) {
+	if (areaName === "sync" && (changes.rules || changes.cronSchedule)) {
 		await scheduleNextMove();
 	}
 });
@@ -389,7 +532,7 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
  */
 browser.alarms.onAlarm.addListener(async (alarm) => {
 	if (alarm.name === "moveActionableTabs") {
-		await moveActionableTabsToTop(undefined);
+		await executeAllRules();
 		await scheduleNextMove();
 	}
 });
