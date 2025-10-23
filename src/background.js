@@ -240,6 +240,9 @@ async function scheduleNextMove() {
 
 	const delayMinutes = parseCronToNextDelay(cronSchedule);
 
+	// Ensure minimum delay to prevent scheduling issues
+	nextDelayMinutes = Math.max(1, nextDelayMinutes);
+
 	await browser.alarms.clear("moveActionableTabs");
 
 	await browser.alarms.create("moveActionableTabs", {
