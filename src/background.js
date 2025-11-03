@@ -48,19 +48,28 @@ async function executeAllRules() {
 	const settings = await getSettings();
 	let rules = settings.rules;
 
+	const executionResults = [];
+
 	for (const rule of rules) {
 		console.log(`Executing rule ${rule.id} (${rule.cronSchedule})`);
 		try {
-			await moveActionableTabsForRule(rule);
+			const result = await moveActionableTabsForRule(rule);
 			// Update the lastMoveTime for this specific rule
 			rules = rules.map((r) =>
 				r.id === rule.id ? { ...r, lastMoveTime: Date.now() } : r,
 			);
+
+			if (result) {
+				executionResults.push({ rule, result });
+			}
 		} catch (error) {
 			console.error(`Error executing rule ${rule.id}:`, error);
 			// Continue with next rule even if this one failed
 		}
 	}
+
+	// Create aggregated notification if multiple rules executed with notifications
+	await createAggregatedNotification(executionResults);
 
 	// Save all updated rules at once
 	await browser.storage.sync.set({ rules: structuredClone(rules) });
@@ -72,13 +81,14 @@ async function executeAllRules() {
 /**
  * Move actionable tabs for a specific rule
  * @param {{id: string, cronSchedule: string, queueMode: string, moveCount: number, moveDirection: string, showNotifications: boolean, lastMoveTime: number | null}} rule - The rule to execute
+ * @returns {Promise<{moveResults: any[], anyTabMoved: boolean, directionText: string} | null>}
  */
 async function moveActionableTabsForRule(rule) {
 	const actionableTabsData = await getActionableTabsSorted(rule.queueMode);
 
 	if (actionableTabsData.length === 0) {
 		console.log(`No actionable tabs to move for rule ${rule.id}`);
-		return;
+		return null;
 	}
 
 	const targetIndex = await getTargetIndexForActionableTabs(rule.moveDirection);
@@ -92,11 +102,30 @@ async function moveActionableTabsForRule(rule) {
 
 	// Handle rule-specific notifications
 	const anyTabMoved = moveResults.some((result) => result.didMove);
+	const directionText =
+		rule.moveDirection === "right" ? "bottom/right" : "top/left";
 
-	if (anyTabMoved && rule.showNotifications) {
+	return { moveResults, anyTabMoved, directionText };
+}
+
+/**
+ * Create aggregated notification for multiple rule executions
+ * @param {{rule: any, result: {moveResults: any[], anyTabMoved: boolean, directionText: string}}[]} executionResults
+ */
+async function createAggregatedNotification(executionResults) {
+	const rulesWithNotifications = executionResults.filter(
+		({ rule, result }) => rule.showNotifications && result.anyTabMoved,
+	);
+
+	if (rulesWithNotifications.length === 0) {
+		return;
+	}
+
+	if (rulesWithNotifications.length === 1) {
+		// Single rule - show individual notification
+		const { result } = rulesWithNotifications[0];
+		const { moveResults, directionText } = result;
 		const { tab } = moveResults[0];
-		const directionText =
-			rule.moveDirection === "right" ? "bottom/right" : "top/left";
 		const message =
 			moveResults.length === 1
 				? `Pulled "${tab.title}" to ${directionText}`
@@ -107,6 +136,35 @@ async function moveActionableTabsForRule(rule) {
 			iconUrl: "icons/icon-on-48.png",
 			title: "Actionable Tabs",
 			message: message,
+		});
+	} else {
+		// Multiple rules - show aggregated notification with details
+		const totalTabsMoved = rulesWithNotifications.reduce(
+			(sum, { result }) =>
+				sum + result.moveResults.filter((r) => r.didMove).length,
+			0,
+		);
+
+		// Build detailed message with rule-specific information
+		const ruleDetails = rulesWithNotifications.map(({ result }) => {
+			const tabsMoved = result.moveResults.filter((r) => r.didMove).length;
+			const firstTab = result.moveResults.find((r) => r.didMove)?.tab;
+			const tabTitle = firstTab ? `"${firstTab.title}"` : "tabs";
+
+			if (tabsMoved === 1) {
+				return `Pulled ${tabTitle} to ${result.directionText}`;
+			} else {
+				return `Moved ${tabsMoved} actionable tab(s) to ${result.directionText}`;
+			}
+		});
+
+		const message = `${rulesWithNotifications.length} rules executed: moved ${totalTabsMoved} actionable tab(s)\n\n${ruleDetails.join("\n")}`;
+
+		browser.notifications.create({
+			type: "basic",
+			iconUrl: "icons/icon-on-48.png",
+			title: "Actionable Tabs",
+			message,
 		});
 	}
 }
