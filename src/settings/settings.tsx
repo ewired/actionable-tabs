@@ -313,8 +313,14 @@ function App() {
 				<button
 					type="button"
 					onClick={async () => {
-						await browser.storage.sync.set(DEFAULTS);
-						await updateStatus();
+						if (
+							confirm(
+								"Reset all settings to defaults? This will replace all your current rules with a single default rule.",
+							)
+						) {
+							await browser.storage.sync.set(DEFAULTS);
+							await updateStatus();
+						}
 					}}
 				>
 					RESET
