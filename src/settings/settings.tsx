@@ -7,6 +7,7 @@ import { render } from "preact";
 import {
 	DEFAULTS,
 	getMostRecentLastMoveTime,
+	getNextExecutingRulesWithParser,
 	getSettings,
 	type Rule,
 	type Settings,
@@ -20,6 +21,7 @@ type Status = {
 	total: number;
 	lastMove: string;
 	nextMove: string;
+	nextRules: string;
 };
 
 const initialSettings = await getSettings();
@@ -31,6 +33,7 @@ const status = signal<Status>({
 	total: 0,
 	lastMove: "Never",
 	nextMove: "Unknown",
+	nextRules: "",
 });
 
 const isLoading = signal<boolean>(true);
@@ -58,6 +61,15 @@ async function updateStatus(): Promise<void> {
 		settings.value.rules,
 	);
 
+	// Determine which rule(s) will execute next
+	const nextRuleIndices = getNextExecutingRulesWithParser(
+		settings.value.rules,
+		CronExpressionParser,
+	);
+	const nextRuleNames = nextRuleIndices
+		.map((index) => `Rule ${index + 1}`)
+		.join(", ");
+
 	status.value = {
 		actionable: actionableCount,
 		pinned: tabs.filter((t) => t.pinned).length,
@@ -68,6 +80,7 @@ async function updateStatus(): Promise<void> {
 		nextMove: alarm?.scheduledTime
 			? relTime(new Date(alarm.scheduledTime))
 			: "Unknown",
+		nextRules: nextRuleNames || "None",
 	};
 	isLoading.value = false;
 }
@@ -414,6 +427,8 @@ function App() {
 						<dd>{status.value.lastMove}</dd>
 						<dt>Next move</dt>
 						<dd>{status.value.nextMove}</dd>
+						<dt>Next rule(s)</dt>
+						<dd>{status.value.nextRules}</dd>
 					</dl>
 				</fieldset>
 

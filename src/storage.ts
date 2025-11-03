@@ -64,6 +64,61 @@ export function getMostRecentLastMoveTime(rules: Rule[]): number | null {
 }
 
 /**
+ * Find the rule(s) that will execute next based on their cron schedules
+ * Returns an array of rule indices that have the same earliest execution time
+ */
+export function getNextExecutingRulesWithParser(
+	rules: Rule[],
+	CronExpressionParser: {
+		parse: (
+			expression: string,
+			options?: object,
+		) => {
+			next: () => { toDate: () => Date };
+		};
+	},
+): number[] {
+	let nextExecutionTime = null;
+	const nextRuleIndices: number[] = [];
+
+	for (let i = 0; i < rules.length; i++) {
+		const rule = rules[i];
+
+		// Skip rules with no scheduled run (empty cron expression)
+		if (!rule.cronSchedule || !rule.cronSchedule.trim()) {
+			continue;
+		}
+
+		try {
+			const options = {
+				currentDate: new Date(),
+				strict: false,
+			};
+
+			const interval = CronExpressionParser.parse(rule.cronSchedule, options);
+			const nextDate = interval.next().toDate();
+			const executionTime = nextDate.getTime();
+
+			if (!nextExecutionTime) {
+				// First rule with a schedule
+				nextExecutionTime = executionTime;
+				nextRuleIndices.push(i);
+			} else if (executionTime === nextExecutionTime) {
+				// Same execution time as current earliest
+				nextRuleIndices.push(i);
+			} else if (executionTime < nextExecutionTime) {
+				// Found earlier execution time
+				nextExecutionTime = executionTime;
+				nextRuleIndices.length = 0; // Clear previous indices
+				nextRuleIndices.push(i);
+			}
+		} catch (_err) {}
+	}
+
+	return nextRuleIndices;
+}
+
+/**
  * Migrate legacy queue mode values to new values
  */
 function migrateQueueMode(queueMode?: string): Rule["queueMode"] | undefined {
