@@ -1,4 +1,4 @@
-BUN_BUILD_OPTS = --target=browser --minify --sourcemap=external
+BUN_BUILD_OPTS = --target=browser --minify --sourcemap=linked
 -include .env
 
 web-ext-artifacts/webext.zip: out/settings/settings.html out/background.js out/manifest.json
