@@ -1,11 +1,7 @@
 export type Rule = {
 	id: string;
 	cronSchedule: string;
-	queueMode:
-		| "oldest-first"
-		| "newest-first"
-		| "leftmost-first"
-		| "rightmost-first";
+	queueMode: "oldest" | "newest" | "leftmost" | "rightmost";
 	lastMoveTime: number | null;
 	moveCount: number;
 	moveDirection: "left" | "right";
@@ -42,7 +38,7 @@ export const DEFAULTS: Settings = {
 		{
 			id: "default-rule-001",
 			cronSchedule: "*/30 * * * *", // every 30 minutes (empty string = no scheduled run)
-			queueMode: "leftmost-first",
+			queueMode: "leftmost",
 			lastMoveTime: null,
 			moveCount: 1, // how many actionable tabs to move per cron execution
 			moveDirection: "left", // where to move actionable tabs: 'left' (after pinned tabs) or 'right' (end of tab strip)
@@ -68,6 +64,29 @@ export function getMostRecentLastMoveTime(rules: Rule[]): number | null {
 }
 
 /**
+ * Migrate legacy queue mode values to new values
+ */
+function migrateQueueMode(queueMode?: string): Rule["queueMode"] | undefined {
+	switch (queueMode) {
+		case "leftmost-first":
+			return "leftmost";
+		case "rightmost-first":
+			return "rightmost";
+		case "oldest-first":
+			return "oldest";
+		case "newest-first":
+			return "newest";
+		case "oldest":
+		case "newest":
+		case "leftmost":
+		case "rightmost":
+			return queueMode as Rule["queueMode"];
+		default:
+			return undefined;
+	}
+}
+
+/**
  * Get settings from storage, handling migration from legacy format
  */
 export async function getSettings(): Promise<Settings> {
@@ -79,6 +98,23 @@ export async function getSettings(): Promise<Settings> {
 		// Already using v1, ensure defaults are applied
 		const settingsWithDefaults = await browser.storage.sync.get(DEFAULTS);
 		const settings = settingsWithDefaults as Settings;
+
+		// Migrate any rules with old queue mode values
+		let needsRuleMigration = false;
+		const migratedRules = settings.rules.map((rule) => {
+			const migratedQueueMode = migrateQueueMode(rule.queueMode);
+			if (migratedQueueMode && migratedQueueMode !== rule.queueMode) {
+				needsRuleMigration = true;
+				return { ...rule, queueMode: migratedQueueMode };
+			}
+			return rule;
+		});
+
+		if (needsRuleMigration) {
+			console.log("Migrating rules with old queue mode values");
+			settings.rules = migratedRules;
+			await browser.storage.sync.set(settings);
+		}
 
 		// Ensure there's always at least one rule
 		if (!settings.rules || settings.rules.length === 0) {
@@ -106,7 +142,8 @@ export async function getSettings(): Promise<Settings> {
 		const migratedRule: Rule = {
 			id: "legacy",
 			cronSchedule: settings.cronSchedule || DEFAULTS.rules[0].cronSchedule,
-			queueMode: settings.queueMode || DEFAULTS.rules[0].queueMode,
+			queueMode:
+				migrateQueueMode(settings.queueMode) || DEFAULTS.rules[0].queueMode,
 			lastMoveTime: settings.lastMoveTime || null,
 			moveCount: settings.moveCount || DEFAULTS.rules[0].moveCount,
 			moveDirection: settings.moveDirection || DEFAULTS.rules[0].moveDirection,

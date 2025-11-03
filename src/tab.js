@@ -29,16 +29,16 @@ export async function getActionableTabsSorted(queueMode) {
 	}
 
 	switch (queueMode) {
-		case "oldest-first":
+		case "oldest":
 			actionableTabsData.sort((a, b) => a.data.markedAt - b.data.markedAt);
 			break;
-		case "newest-first":
+		case "newest":
 			actionableTabsData.sort((a, b) => b.data.markedAt - a.data.markedAt);
 			break;
-		case "leftmost-first":
+		case "leftmost":
 			actionableTabsData.sort((a, b) => a.tab.index - b.tab.index);
 			break;
-		case "rightmost-first":
+		case "rightmost":
 			actionableTabsData.sort((a, b) => b.tab.index - a.tab.index);
 			break;
 	}
@@ -53,13 +53,13 @@ export async function getActionableTabsSorted(queueMode) {
  */
 function getQueueModeDisplayText(queueMode) {
 	switch (queueMode) {
-		case "oldest-first":
+		case "oldest":
 			return "Oldest";
-		case "newest-first":
+		case "newest":
 			return "Newest";
-		case "leftmost-first":
+		case "leftmost":
 			return "Leftmost";
-		case "rightmost-first":
+		case "rightmost":
 			return "Rightmost";
 		default:
 			return queueMode;

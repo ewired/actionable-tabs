@@ -134,7 +134,7 @@ function addRule(): void {
 	const newRule: Rule = {
 		id: crypto.randomUUID(),
 		cronSchedule: "*/30 * * * *",
-		queueMode: "leftmost-first",
+		queueMode: "leftmost",
 		lastMoveTime: null,
 		moveCount: 1,
 		moveDirection: "left",
@@ -320,17 +320,17 @@ function App() {
 									value={rule.queueMode}
 									onChange={(e) => {
 										const value = e.currentTarget.value as
-											| "oldest-first"
-											| "newest-first"
-											| "leftmost-first"
-											| "rightmost-first";
+											| "oldest"
+											| "newest"
+											| "leftmost"
+											| "rightmost";
 										updateRule(index, { queueMode: value });
 									}}
 								>
-									<option value="oldest-first">Oldest First (FIFO)</option>
-									<option value="newest-first">Newest First (LIFO)</option>
-									<option value="leftmost-first">Leftmost First</option>
-									<option value="rightmost-first">Rightmost First</option>
+									<option value="oldest">Oldest (FIFO)</option>
+									<option value="newest">Newest (LIFO)</option>
+									<option value="leftmost">Leftmost</option>
+									<option value="rightmost">Rightmost</option>
 								</select>
 								<small>How to choose which actionable tabs to move</small>
 							</label>
