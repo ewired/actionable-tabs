@@ -109,6 +109,7 @@ function relTime(d: Date): string {
 	const m = Math.round((d.getTime() - Date.now()) / 60000);
 	if (m < -60) return `${Math.round(-m / 60)}h ago`;
 	if (m < 0) return `${-m}m ago`;
+	if (m === 0) return "less than 1m";
 	if (m < 60) return `in ${m}m`;
 	return `in ${Math.round(m / 60)}h`;
 }
