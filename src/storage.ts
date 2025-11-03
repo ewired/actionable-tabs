@@ -41,7 +41,7 @@ export const DEFAULTS: Settings = {
 	rules: [
 		{
 			id: "default-rule-001",
-			cronSchedule: "*/30 * * * *", // every 30 minutes
+			cronSchedule: "*/30 * * * *", // every 30 minutes (empty string = no scheduled run)
 			queueMode: "leftmost-first",
 			lastMoveTime: null,
 			moveCount: 1, // how many actionable tabs to move per cron execution

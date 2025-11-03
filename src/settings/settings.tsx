@@ -243,6 +243,7 @@ function App() {
 								<select
 									value={(() => {
 										const presets = [
+											"",
 											"*/1 * * * *",
 											"*/5 * * * *",
 											"*/15 * * * *",
@@ -267,6 +268,7 @@ function App() {
 										}
 									}}
 								>
+									<option value="">No scheduled run</option>
 									<option value="*/1 * * * *">Every minute</option>
 									<option value="*/5 * * * *">Every 5 minutes</option>
 									<option value="*/15 * * * *">Every 15 minutes</option>
@@ -296,7 +298,7 @@ function App() {
 									}}
 									class={(() => {
 										if (!rule.cronSchedule || !rule.cronSchedule.trim())
-											return "invalid";
+											return "";
 										try {
 											CronExpressionParser.parse(rule.cronSchedule.trim());
 											return "";
@@ -304,9 +306,12 @@ function App() {
 											return "invalid";
 										}
 									})()}
-									placeholder="*/30 * * * *"
+									placeholder="*/30 * * * * or leave empty for no scheduled run"
 								/>
-								<small>*/15 * * * * = every 15min | 0 * * * * = hourly</small>
+								<small>
+									*/15 * * * * = every 15min | 0 * * * * = hourly | empty = no
+									scheduled run
+								</small>
 							</label>
 
 							<label>
@@ -406,7 +411,7 @@ function App() {
 				</fieldset>
 
 				{settings.value.rules.some((rule) => {
-					if (!rule.cronSchedule || !rule.cronSchedule.trim()) return true;
+					if (!rule.cronSchedule || !rule.cronSchedule.trim()) return false;
 					try {
 						CronExpressionParser.parse(rule.cronSchedule.trim());
 						return false;

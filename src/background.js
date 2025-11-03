@@ -349,7 +349,16 @@ async function scheduleNextMove() {
 	let nextDelayMinutes = 30; // default fallback
 
 	for (const rule of rules) {
+		// Skip rules with no scheduled run (empty cron expression)
+		if (!rule.cronSchedule || !rule.cronSchedule.trim()) {
+			continue;
+		}
+
 		const delayMinutes = parseCronToNextDelay(rule.cronSchedule);
+		if (delayMinutes === null) {
+			continue;
+		}
+
 		const executionTime = Date.now() + delayMinutes * 60 * 1000;
 
 		if (!nextExecutionTime || executionTime < nextExecutionTime) {
@@ -358,26 +367,38 @@ async function scheduleNextMove() {
 		}
 	}
 
-	// Ensure minimum delay to prevent scheduling issues
-	nextDelayMinutes = Math.max(1, nextDelayMinutes);
+	// Only schedule if we have rules with cron expressions
+	if (nextExecutionTime) {
+		// Ensure minimum delay to prevent scheduling issues
+		nextDelayMinutes = Math.max(1, nextDelayMinutes);
 
-	await browser.alarms.clear("moveActionableTabs");
+		await browser.alarms.clear("moveActionableTabs");
 
-	await browser.alarms.create("moveActionableTabs", {
-		delayInMinutes: nextDelayMinutes,
-	});
+		await browser.alarms.create("moveActionableTabs", {
+			delayInMinutes: nextDelayMinutes,
+		});
 
-	console.log(`Scheduled next move in ${nextDelayMinutes} minutes`);
+		console.log(`Scheduled next move in ${nextDelayMinutes} minutes`);
+	} else {
+		// No rules with scheduled runs, clear any existing alarm
+		await browser.alarms.clear("moveActionableTabs");
+		console.log("No scheduled runs configured, alarm cleared");
+	}
 }
 
 /**
  * Parse cron expression to get delay in minutes until next execution
  * Uses cron-parser library to handle full cron syntax
  * @param {string} cronSchedule - Cron expression (5 or 6 fields supported)
- * @returns {number} Delay in minutes until next cron execution (minimum 1 minute)
+ * @returns {number|null} Delay in minutes until next cron execution, or null for no scheduled run
  */
 function parseCronToNextDelay(cronSchedule) {
 	const DEFAULT_DELAY_MINUTES = 30;
+
+	// Handle empty cron expression (no scheduled run)
+	if (!cronSchedule || !cronSchedule.trim()) {
+		return null;
+	}
 
 	try {
 		const options = {
@@ -416,6 +437,11 @@ function parseCronToNextDelay(cronSchedule) {
  * @returns {number} Number of missed moves (0 if none or on error)
  */
 function calculateMissedMoves(cronSchedule, lastMoveTime) {
+	// Handle empty cron expression (no scheduled run)
+	if (!cronSchedule || !cronSchedule.trim()) {
+		return 0;
+	}
+
 	try {
 		const options = {
 			currentDate: new Date(lastMoveTime),
