@@ -380,6 +380,13 @@ function App() {
 								Show notifications
 							</label>
 
+							<div class="rule-last-move">
+								<strong>Last moved:</strong>{" "}
+								{rule.lastMoveTime
+									? relTime(new Date(rule.lastMoveTime))
+									: "Never"}
+							</div>
+
 							<div class="context-menu-info">
 								<strong>Context Menu:</strong> Right-click on the Actionable
 								Tabs icon and select "

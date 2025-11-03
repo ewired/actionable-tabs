@@ -224,3 +224,17 @@ button.add-rule:hover {
 .context-menu-info strong {
 	color: #4a90e2;
 }
+
+.rule-last-move {
+	font-size: 13px;
+	color: #666;
+	margin-top: 8px;
+	padding: 6px 10px;
+	background: #f8f9fa;
+	border-radius: 4px;
+	border-left: 3px solid #28a745;
+}
+
+.rule-last-move strong {
+	color: #333;
+}
