@@ -36,6 +36,8 @@ const status = signal<Status>({
 	nextRules: "",
 });
 
+const ruleNextSchedules = signal<Record<string, string>>({});
+
 const isLoading = signal<boolean>(true);
 const saveStatus = signal<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -70,6 +72,26 @@ async function updateStatus(): Promise<void> {
 		.map((index) => `Rule ${index + 1}`)
 		.join(", ");
 
+	// Calculate next scheduled time for each individual rule
+	const nextSchedules: Record<string, string> = {};
+	for (const rule of settings.value.rules) {
+		if (!rule.cronSchedule || !rule.cronSchedule.trim()) {
+			nextSchedules[rule.id] = "Not scheduled";
+			continue;
+		}
+
+		try {
+			const interval = CronExpressionParser.parse(rule.cronSchedule, {
+				currentDate: new Date(),
+				strict: false,
+			});
+			const nextDate = interval.next().toDate();
+			nextSchedules[rule.id] = relTime(nextDate);
+		} catch (_err) {
+			nextSchedules[rule.id] = "Invalid schedule";
+		}
+	}
+
 	status.value = {
 		actionable: actionableCount,
 		pinned: tabs.filter((t) => t.pinned).length,
@@ -82,6 +104,7 @@ async function updateStatus(): Promise<void> {
 			: "Unknown",
 		nextRules: nextRuleNames || "None",
 	};
+	ruleNextSchedules.value = nextSchedules;
 	isLoading.value = false;
 }
 
@@ -398,6 +421,11 @@ function App() {
 								{rule.lastMoveTime
 									? relTime(new Date(rule.lastMoveTime))
 									: "Never"}
+							</div>
+
+							<div class="rule-next-schedule">
+								<strong>Next scheduled move:</strong>{" "}
+								{ruleNextSchedules.value[rule.id] || "Unknown"}
 							</div>
 
 							<div class="context-menu-info">
