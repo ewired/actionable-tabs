@@ -131,55 +131,9 @@ export async function moveActionableTabsForRule(params) {
 	const targetIndex = await getTargetIndexForActionableTabs(moveDirection);
 	const tabsToMove = actionableTabsData.slice(0, moveCount);
 
-	const moveResults = await moveActionableTabs({
-		actionableTabsData: tabsToMove,
-		targetIndex: targetIndex,
-	});
-
-	const anyTabMoved = moveResults.some((result) => result.didMove);
-	const directionText = moveDirection === "right" ? "bottom/right" : "top/left";
-
-	if (isManual) {
-		const { tab, didMove, oldIndex, newIndex } = moveResults[0];
-		const queueModeText = getQueueModeDisplayText(queueMode);
-
-		if (didMove) {
-			console.log(
-				`Moved actionable tab ${tab.id} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
-			);
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: `Pulled ${queueModeText} "${tab.title}" to ${directionText}`,
-			});
-		} else {
-			console.log(
-				`Tab ${tab.id} (${tab.title}) already at correct index ${newIndex}`,
-			);
-			browser.notifications.create({
-				type: "basic",
-				iconUrl: "icons/icon-on-48.png",
-				title: "Actionable Tabs",
-				message: `${queueModeText} "${tab.title}" is already at the ${directionText}`,
-			});
-		}
-	}
-
-	return { moveResults, anyTabMoved, directionText };
-}
-
-/**
- * Shared function to move actionable tabs
- * @param {{actionableTabsData: Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>, targetIndex: number}} params
- * @returns {Promise<Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>>}
- */
-async function moveActionableTabs({ actionableTabsData, targetIndex }) {
-	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
 	const moveResults = [];
-
-	for (let i = 0; i < actionableTabsData.length; i++) {
-		const { tabId, tab } = actionableTabsData[i];
+	for (let i = 0; i < tabsToMove.length; i++) {
+		const { tabId, tab } = tabsToMove[i];
 		const oldIndex = tab.index;
 		const desiredIndex = targetIndex + i;
 
@@ -213,7 +167,37 @@ async function moveActionableTabs({ actionableTabsData, targetIndex }) {
 		}
 	}
 
-	return moveResults;
+	const anyTabMoved = moveResults.some((result) => result.didMove);
+	const directionText = moveDirection === "right" ? "bottom/right" : "top/left";
+
+	if (isManual) {
+		const { tab, didMove, oldIndex, newIndex } = moveResults[0];
+		const queueModeText = getQueueModeDisplayText(queueMode);
+
+		if (didMove) {
+			console.log(
+				`Moved actionable tab ${tab.id} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
+			);
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-on-48.png",
+				title: "Actionable Tabs",
+				message: `Pulled ${queueModeText} "${tab.title}" to ${directionText}`,
+			});
+		} else {
+			console.log(
+				`Tab ${tab.id} (${tab.title}) already at correct index ${newIndex}`,
+			);
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-on-48.png",
+				title: "Actionable Tabs",
+				message: `${queueModeText} "${tab.title}" is already at the ${directionText}`,
+			});
+		}
+	}
+
+	return { moveResults, anyTabMoved, directionText };
 }
 
 /**
