@@ -1,7 +1,7 @@
 /// <reference types="./ambient.d.ts" />
 
 import { CronExpressionParser } from "cron-parser";
-import { getMostRecentLastMoveTime, getSettings } from "./storage.js";
+import { getSettings } from "./storage.js";
 import {
 	clearAllActionableTabs,
 	getActionableTabsSorted,
@@ -36,7 +36,6 @@ browser.runtime.onInstalled.addListener(async () => {
 });
 
 browser.runtime.onStartup.addListener(async () => {
-	await checkForMissedMovesAndCatchUp();
 	await scheduleNextMove();
 	await initializeIconsForAllTabs();
 });
@@ -485,108 +484,6 @@ function parseCronToNextDelay(cronSchedule) {
 			`Falling back to default delay of ${DEFAULT_DELAY_MINUTES} minutes`,
 		);
 		return DEFAULT_DELAY_MINUTES;
-	}
-}
-
-/**
- * Calculate how many scheduled moves were missed since lastMoveTime
- * @param {string} cronSchedule - Cron expression
- * @param {number} lastMoveTime - Timestamp of last move (milliseconds since epoch)
- * @returns {number} Number of missed moves (0 if none or on error)
- */
-function calculateMissedMoves(cronSchedule, lastMoveTime) {
-	// Handle empty cron expression (no scheduled run)
-	if (!cronSchedule || !cronSchedule.trim()) {
-		return 0;
-	}
-
-	try {
-		const options = {
-			currentDate: new Date(lastMoveTime),
-			strict: false,
-		};
-
-		const interval = CronExpressionParser.parse(cronSchedule, options);
-		const now = new Date();
-		let missedCount = 0;
-
-		while (true) {
-			const nextDate = interval.next().toDate();
-
-			if (nextDate.getTime() > now.getTime()) {
-				break;
-			}
-
-			missedCount++;
-
-			if (missedCount > 10000) {
-				console.warn(
-					"Reached maximum iteration limit while calculating missed moves",
-				);
-				break;
-			}
-		}
-
-		return missedCount;
-	} catch (error) {
-		console.error(
-			`Failed to calculate missed moves for cron "${cronSchedule}":`,
-			error,
-		);
-		return 0;
-	}
-}
-
-/**
- * Check for missed scheduled moves since last browser session and catch up if needed
- * Called on browser startup to ensure idempotency across restarts
- */
-async function checkForMissedMovesAndCatchUp() {
-	const settings = await getSettings();
-	const rules = settings.rules;
-
-	// Find the most recent lastMoveTime across all rules
-	const mostRecentLastMoveTime = getMostRecentLastMoveTime(rules);
-
-	if (!mostRecentLastMoveTime) {
-		console.log("No lastMoveTime found - skipping catch-up check");
-		return;
-	}
-
-	console.log(
-		`Checking for missed moves since ${new Date(mostRecentLastMoveTime).toISOString()}`,
-	);
-
-	// Check each rule for missed moves
-	let totalMissedMoves = 0;
-	for (const rule of rules) {
-		// Skip rules that have never run (lastMoveTime is null)
-		if (!rule.lastMoveTime) {
-			continue;
-		}
-
-		const missedMoves = calculateMissedMoves(
-			rule.cronSchedule,
-			rule.lastMoveTime,
-		);
-		if (missedMoves > 0) {
-			console.log(`Rule ${rule.id}: ${missedMoves} missed move(s) detected`);
-		}
-		totalMissedMoves += missedMoves;
-	}
-
-	if (totalMissedMoves > 0) {
-		console.log(
-			`Found ${totalMissedMoves} missed scheduled move(s) across all rules - executing catch-up`,
-		);
-
-		await executeAllRules();
-
-		console.log(
-			`Catch-up complete - brought ${totalMissedMoves} missed move(s) current`,
-		);
-	} else {
-		console.log("No missed moves detected");
 	}
 }
 
