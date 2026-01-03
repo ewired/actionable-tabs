@@ -41,15 +41,46 @@ browser.runtime.onStartup.addListener(async () => {
 });
 
 /**
+ * Check if a rule should be executed based on its cron schedule
+ * @param {{id: string, cronSchedule: string}} rule
+ * @param {number} now Current timestamp
+ * @returns {boolean}
+ */
+function shouldExecuteRule(rule, now) {
+	if (!rule.cronSchedule?.trim()) {
+		return false;
+	}
+
+	try {
+		const interval = CronExpressionParser.parse(rule.cronSchedule, {
+			currentDate: new Date(),
+			strict: false,
+		});
+		const timeSinceLast = now - interval.prev().toDate().getTime();
+		if (timeSinceLast > 60000) {
+			return false;
+		}
+		return true;
+	} catch (_err) {
+		console.error(`Invalid cron for rule ${rule.id}, skipping`);
+		return false;
+	}
+}
+
+/**
  * Execute all rules in order
+ * Only executes rules whose scheduled time has arrived
  */
 async function executeAllRules() {
 	const settings = await getSettings();
 	let rules = settings.rules;
 
 	const executionResults = [];
+	const now = Date.now();
 
 	for (const rule of rules) {
+		if (!shouldExecuteRule(rule, now)) continue;
+
 		console.log(`Executing rule ${rule.id} (${rule.cronSchedule})`);
 		try {
 			const result = await moveActionableTabsForRule(rule);
