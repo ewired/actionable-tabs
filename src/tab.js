@@ -7,7 +7,7 @@ if (typeof browser === "undefined") globalThis.browser = chrome;
  * @param {string} queueMode - The queue mode setting
  * @returns {Promise<Array<{tabId: number, data: {markedAt: number}, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>>}
  */
-export async function getActionableTabsSorted(queueMode) {
+async function getActionableTabsSorted(queueMode) {
 	const allTabs = await browser.tabs.query({ currentWindow: true });
 	const validTabs =
 		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
@@ -88,7 +88,7 @@ export function getContextMenuTitle(queueMode, moveDirection) {
  * @param {string} moveDirection - The move direction setting ('left' or 'right')
  * @returns {Promise<number>}
  */
-export async function getTargetIndexForActionableTabs(moveDirection) {
+async function getTargetIndexForActionableTabs(moveDirection) {
 	const allTabs = await browser.tabs.query({ currentWindow: true });
 	const validTabs =
 		/** @type {(import('webextension-polyfill').Tabs.Tab & {id: number})[]} */ (
@@ -106,56 +106,67 @@ export async function getTargetIndexForActionableTabs(moveDirection) {
 }
 
 /**
- * Manually move one actionable tab using specified rule parameters
- * @param {{queueMode: string, moveDirection: string}} ruleParams - Rule parameters to use for the move
+ * Move actionable tabs using specified rule parameters
+ * @param {{queueMode: string, moveDirection: string, moveCount?: number, isManual?: boolean}} params - Rule parameters to use for the move
+ * @returns {Promise<{moveResults: any[], anyTabMoved: boolean, directionText: string} | null>}
  */
-export async function moveActionableTabManually(ruleParams) {
-	const { queueMode, moveDirection } = ruleParams;
+export async function moveActionableTabsForRule(params) {
+	const { queueMode, moveDirection, moveCount = 1, isManual = false } = params;
 
 	const actionableTabsData = await getActionableTabsSorted(queueMode);
 
 	if (actionableTabsData.length === 0) {
 		console.log("No actionable tabs to move");
-		browser.notifications.create({
-			type: "basic",
-			iconUrl: "icons/icon-on-48.png",
-			title: "Actionable Tabs",
-			message: "No actionable tabs to pull",
-		});
-		return;
+		if (isManual) {
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-on-48.png",
+				title: "Actionable Tabs",
+				message: "No actionable tabs to pull",
+			});
+		}
+		return null;
 	}
 
-	// Use shared function to move tabs
+	const targetIndex = await getTargetIndexForActionableTabs(moveDirection);
+	const tabsToMove = actionableTabsData.slice(0, moveCount);
+
 	const moveResults = await moveActionableTabs({
-		actionableTabsData: actionableTabsData.slice(0, 1), // Only move first tab for manual
-		targetIndex: await getTargetIndexForActionableTabs(moveDirection),
+		actionableTabsData: tabsToMove,
+		targetIndex: targetIndex,
 	});
 
-	// Handle manual-specific notifications
-	const { tab, didMove, oldIndex, newIndex } = moveResults[0];
-	const queueModeText = getQueueModeDisplayText(queueMode);
+	const anyTabMoved = moveResults.some((result) => result.didMove);
+	const directionText = moveDirection === "right" ? "bottom/right" : "top/left";
 
-	if (didMove) {
-		console.log(
-			`Moved actionable tab ${tab.id} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
-		);
-		browser.notifications.create({
-			type: "basic",
-			iconUrl: "icons/icon-on-48.png",
-			title: "Actionable Tabs",
-			message: `Pulled ${queueModeText} "${tab.title}" to ${moveDirection === "left" ? "top/left" : "bottom/right"}`,
-		});
-	} else {
-		console.log(
-			`Tab ${tab.id} (${tab.title}) already at correct index ${newIndex}`,
-		);
-		browser.notifications.create({
-			type: "basic",
-			iconUrl: "icons/icon-on-48.png",
-			title: "Actionable Tabs",
-			message: `${queueModeText} "${tab.title}" is already at the ${moveDirection === "left" ? "top/left" : "bottom/right"}`,
-		});
+	if (isManual) {
+		const { tab, didMove, oldIndex, newIndex } = moveResults[0];
+		const queueModeText = getQueueModeDisplayText(queueMode);
+
+		if (didMove) {
+			console.log(
+				`Moved actionable tab ${tab.id} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
+			);
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-on-48.png",
+				title: "Actionable Tabs",
+				message: `Pulled ${queueModeText} "${tab.title}" to ${directionText}`,
+			});
+		} else {
+			console.log(
+				`Tab ${tab.id} (${tab.title}) already at correct index ${newIndex}`,
+			);
+			browser.notifications.create({
+				type: "basic",
+				iconUrl: "icons/icon-on-48.png",
+				title: "Actionable Tabs",
+				message: `${queueModeText} "${tab.title}" is already at the ${directionText}`,
+			});
+		}
 	}
+
+	return { moveResults, anyTabMoved, directionText };
 }
 
 /**
@@ -163,7 +174,7 @@ export async function moveActionableTabManually(ruleParams) {
  * @param {{actionableTabsData: Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}}>, targetIndex: number}} params
  * @returns {Promise<Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>>}
  */
-export async function moveActionableTabs({ actionableTabsData, targetIndex }) {
+async function moveActionableTabs({ actionableTabsData, targetIndex }) {
 	/** @type {Array<{tabId: number, tab: import('webextension-polyfill').Tabs.Tab & {id: number}, oldIndex: number, newIndex: number, didMove: boolean}>} */
 	const moveResults = [];
 

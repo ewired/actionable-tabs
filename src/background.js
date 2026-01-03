@@ -4,11 +4,8 @@ import { CronExpressionParser } from "cron-parser";
 import { getSettings } from "./storage.js";
 import {
 	clearAllActionableTabs,
-	getActionableTabsSorted,
 	getContextMenuTitle,
-	getTargetIndexForActionableTabs,
-	moveActionableTabManually,
-	moveActionableTabs,
+	moveActionableTabsForRule,
 } from "./tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
@@ -83,7 +80,11 @@ async function executeAllRules() {
 
 		console.log(`Executing rule ${rule.id} (${rule.cronSchedule})`);
 		try {
-			const result = await moveActionableTabsForRule(rule);
+			const result = await moveActionableTabsForRule({
+				queueMode: rule.queueMode,
+				moveDirection: rule.moveDirection,
+				moveCount: rule.moveCount,
+			});
 			// Update the lastMoveTime for this specific rule
 			rules = rules.map((r) =>
 				r.id === rule.id ? { ...r, lastMoveTime: Date.now() } : r,
@@ -106,36 +107,6 @@ async function executeAllRules() {
 
 	// Reschedule the next move to ensure the alarm schedule is up-to-date
 	await scheduleNextMove();
-}
-
-/**
- * Move actionable tabs for a specific rule
- * @param {{id: string, cronSchedule: string, queueMode: string, moveCount: number, moveDirection: string, showNotifications: boolean, lastMoveTime: number | null}} rule - The rule to execute
- * @returns {Promise<{moveResults: any[], anyTabMoved: boolean, directionText: string} | null>}
- */
-async function moveActionableTabsForRule(rule) {
-	const actionableTabsData = await getActionableTabsSorted(rule.queueMode);
-
-	if (actionableTabsData.length === 0) {
-		console.log(`No actionable tabs to move for rule ${rule.id}`);
-		return null;
-	}
-
-	const targetIndex = await getTargetIndexForActionableTabs(rule.moveDirection);
-	const tabsToMove = actionableTabsData.slice(0, rule.moveCount);
-
-	// Use shared function to move tabs
-	const moveResults = await moveActionableTabs({
-		actionableTabsData: tabsToMove,
-		targetIndex: targetIndex,
-	});
-
-	// Handle rule-specific notifications
-	const anyTabMoved = moveResults.some((result) => result.didMove);
-	const directionText =
-		rule.moveDirection === "right" ? "bottom/right" : "top/left";
-
-	return { moveResults, anyTabMoved, directionText };
 }
 
 /**
@@ -273,7 +244,12 @@ browser.contextMenus.onClicked.addListener(async (info, _tab) => {
 		const [queueMode, moveDirection] = actionKey.split("_");
 
 		try {
-			await moveActionableTabManually({ queueMode, moveDirection });
+			await moveActionableTabsForRule({
+				queueMode,
+				moveDirection,
+				moveCount: 1,
+				isManual: true,
+			});
 		} catch (error) {
 			console.error("Error moving actionable tab manually:", error);
 			browser.notifications.create({
