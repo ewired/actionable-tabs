@@ -33,6 +33,11 @@ browser.runtime.onInstalled.addListener(async () => {
 });
 
 browser.runtime.onStartup.addListener(async () => {
+	const settings = await getSettings();
+	const { updatedRules } = await catchUpMissedRules(settings.rules);
+	if (updatedRules !== settings.rules) {
+		await browser.storage.sync.set({ rules: structuredClone(updatedRules) });
+	}
 	await scheduleNextMove();
 	await initializeIconsForAllTabs();
 });
@@ -492,6 +497,120 @@ function parseCronToNextDelay(cronSchedule) {
 		);
 		return DEFAULT_DELAY_MINUTES;
 	}
+}
+
+/**
+ * Calculate how many scheduled moves were missed since lastMoveTime
+ * @param {string} cronSchedule - Cron expression
+ * @param {number} lastMoveTime - Timestamp of last move (milliseconds since epoch)
+ * @returns {number} Number of missed moves (0 if none or on error)
+ */
+function calculateMissedMoves(cronSchedule, lastMoveTime) {
+	if (!cronSchedule || !cronSchedule.trim()) {
+		return 0;
+	}
+
+	try {
+		const options = {
+			currentDate: new Date(lastMoveTime),
+			strict: false,
+		};
+
+		const interval = CronExpressionParser.parse(cronSchedule, options);
+		const now = new Date();
+		let missedCount = 0;
+
+		while (true) {
+			const nextDate = interval.next().toDate();
+
+			if (nextDate.getTime() > now.getTime()) {
+				break;
+			}
+
+			missedCount++;
+
+			if (missedCount > 10000) {
+				console.warn(
+					"Reached maximum iteration limit while calculating missed moves",
+				);
+				break;
+			}
+		}
+
+		return missedCount;
+	} catch (error) {
+		console.error(
+			`Failed to calculate missed moves for cron "${cronSchedule}":`,
+			error,
+		);
+		return 0;
+	}
+}
+
+/**
+ * Check for missed scheduled moves and execute catch-up by running affected rules
+ * Called on browser startup to ensure idempotency across restarts
+ * @param {{id: string, cronSchedule: string, lastMoveTime: number | null, queueMode: string, moveDirection: string, moveCount: number, showNotifications: boolean}[]} rules
+ * @returns {Promise<{rulesUpdated: boolean, totalMissedMoves: number, updatedRules: any[]}>} Whether rules were updated, total missed moves, and updated rules
+ */
+async function catchUpMissedRules(rules) {
+	if (!rules || rules.length === 0) {
+		return { rulesUpdated: false, totalMissedMoves: 0, updatedRules: rules };
+	}
+
+	const rulesToExecute = [];
+	let totalMissedMoves = 0;
+
+	for (const rule of rules) {
+		if (!rule.lastMoveTime) continue;
+
+		const missedMoves = calculateMissedMoves(
+			rule.cronSchedule,
+			rule.lastMoveTime,
+		);
+		if (missedMoves > 0) {
+			console.log(`Rule ${rule.id}: ${missedMoves} missed move(s) detected`);
+			rulesToExecute.push(rule);
+			totalMissedMoves += missedMoves;
+		}
+	}
+
+	if (totalMissedMoves > 0) {
+		console.log(
+			`Found ${totalMissedMoves} missed scheduled move(s) across all rules - executing catch-up`,
+		);
+
+		for (const rule of rulesToExecute) {
+			console.log(`Executing catch-up for rule ${rule.id}`);
+			try {
+				await moveActionableTabsForRule({
+					queueMode: rule.queueMode,
+					moveDirection: rule.moveDirection,
+					moveCount: rule.moveCount,
+				});
+			} catch (error) {
+				console.error(`Error executing catch-up for rule ${rule.id}:`, error);
+			}
+		}
+
+		console.log(
+			`Catch-up complete - brought ${totalMissedMoves} missed move(s) current`,
+		);
+	} else {
+		console.log("No missed moves detected");
+	}
+
+	const now = Date.now();
+	const updatedRules = rules.map((rule) => {
+		if (!rule.lastMoveTime) return rule;
+		const missedMoves = calculateMissedMoves(
+			rule.cronSchedule,
+			rule.lastMoveTime,
+		);
+		return missedMoves > 0 ? { ...rule, lastMoveTime: now } : rule;
+	});
+
+	return { rulesUpdated: totalMissedMoves > 0, totalMissedMoves, updatedRules };
 }
 
 /**
