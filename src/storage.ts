@@ -32,7 +32,7 @@ export type Settings = {
 	rules: Rule[];
 };
 
-export const DEFAULTS: Settings = {
+export const DEFAULTS = {
 	version: 1,
 	rules: [
 		{
@@ -45,7 +45,7 @@ export const DEFAULTS: Settings = {
 			showNotifications: true,
 		},
 	],
-};
+} satisfies Settings;
 
 /**
  * Find the most recent lastMoveTime across all rules
@@ -238,10 +238,7 @@ export async function getSettings(): Promise<Settings> {
 		return structuredClone(newSettings);
 	} else {
 		// No existing settings, initialize with v1 defaults
-		const defaultsWithVersion: Settings = {
-			version: 1,
-			...DEFAULTS,
-		};
+		const defaultsWithVersion: Settings = { ...DEFAULTS };
 
 		// Ensure there's always at least one rule
 		if (!defaultsWithVersion.rules || defaultsWithVersion.rules.length === 0) {

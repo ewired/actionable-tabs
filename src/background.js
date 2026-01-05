@@ -23,6 +23,7 @@ const NON_ACTIONABLE_ICON_PATHS = {
 	48: "icons/icon-off-48.png",
 	128: "icons/icon-off-128.png",
 };
+
 browser.runtime.onInstalled.addListener(async () => {
 	console.log("Actionable Tabs extension installed");
 
@@ -90,12 +91,11 @@ async function executeAllRules() {
 				moveDirection: rule.moveDirection,
 				moveCount: rule.moveCount,
 			});
-			// Update the lastMoveTime for this specific rule
-			rules = rules.map((r) =>
-				r.id === rule.id ? { ...r, lastMoveTime: Date.now() } : r,
-			);
 
 			if (result) {
+				rules = rules.map((r) =>
+					r.id === rule.id ? { ...r, lastMoveTime: Date.now() } : r,
+				);
 				executionResults.push({ rule, result });
 			}
 		} catch (error) {
@@ -620,8 +620,8 @@ browser.storage.onChanged.addListener(async (changes, areaName) => {
 	if (areaName === "sync") {
 		if (changes.rules) {
 			await scheduleNextMove();
-			await createContextMenus();
 		}
+		await createContextMenus();
 	}
 });
 
@@ -643,7 +643,10 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 			!("action" in message)
 		) {
 			return { success: false };
-		} else if (message.action === "clearAllActionableTabs") {
+		}
+
+		const { action } = message;
+		if (action === "clearAllActionableTabs") {
 			try {
 				const clearedCount = await clearAllActionableTabs();
 				await initializeIconsForAllTabs();
