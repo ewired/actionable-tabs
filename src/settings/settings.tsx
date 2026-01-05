@@ -12,6 +12,7 @@ import {
 	type Rule,
 	type Settings,
 } from "../storage";
+
 import { getContextMenuTitle } from "../tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
@@ -134,16 +135,7 @@ function relTime(d: Date): string {
 let debounceTimeout: number | null = null;
 let pendingChanges: Partial<Settings> = {};
 
-function autoSaveRules(rules: Rule[]): void {
-	// Validate that we have at least one rule
-	if (rules.length === 0) {
-		console.warn("Cannot save empty rules array, keeping current rules");
-		return;
-	}
-
-	settings.value = { ...settings.peek(), rules };
-	pendingChanges.rules = rules;
-
+function debouncedSave(): void {
 	if (debounceTimeout !== null) {
 		clearTimeout(debounceTimeout);
 	}
@@ -158,6 +150,23 @@ function autoSaveRules(rules: Rule[]): void {
 			saveStatus.value = "error";
 		}
 	}, 500);
+}
+
+function queueSettingChange<K extends keyof Settings>(
+	key: K,
+	value: Settings[K],
+): void {
+	settings.value = { ...settings.peek(), [key]: value };
+	pendingChanges[key] = value;
+	debouncedSave();
+}
+
+function autoSaveRules(rules: Rule[]): void {
+	if (rules.length === 0) {
+		console.warn("Cannot save empty rules array, keeping current rules");
+		return;
+	}
+	queueSettingChange("rules", rules);
 }
 
 function updateRule(index: number, updates: Partial<Rule>): void {
