@@ -3,7 +3,7 @@
 import { signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
-
+import { Countdown } from "../countdown";
 import {
 	DEFAULTS,
 	getMostRecentLastMoveTime,
@@ -20,8 +20,10 @@ type Status = {
 	actionable: number;
 	pinned: number;
 	total: number;
-	lastMove: string;
-	nextMove: string;
+	/** Epoch ms of the most recent move, or null if never moved */
+	lastMoveTime: number | null;
+	/** Epoch ms of the next scheduled alarm, or null if unknown */
+	nextMoveTime: number | null;
 	nextRules: string;
 };
 
@@ -32,15 +34,53 @@ const status = signal<Status>({
 	actionable: 0,
 	pinned: 0,
 	total: 0,
-	lastMove: "Never",
-	nextMove: "Unknown",
+	lastMoveTime: null,
+	nextMoveTime: null,
 	nextRules: "",
 });
-
-const ruleNextSchedules = signal<Record<string, string>>({});
+const ruleNextMoveTimes = signal<Record<string, number | null>>({});
 
 const isLoading = signal<boolean>(true);
 const saveStatus = signal<"idle" | "saving" | "saved" | "error">("idle");
+
+function getNextScheduledTime(
+	cronSchedule: string | undefined,
+	currentDate = new Date(),
+): number | null {
+	if (!cronSchedule?.trim()) return null;
+
+	try {
+		const interval = CronExpressionParser.parse(cronSchedule, {
+			currentDate,
+			strict: false,
+		});
+		return interval.next().toDate().getTime();
+	} catch (_err) {
+		return null;
+	}
+}
+
+function getRuleNextMoveTimes(
+	rules: Rule[],
+	nextMoveTime: number | null,
+): Record<string, number | null> {
+	const now = new Date();
+	const nextRuleIndices = new Set(
+		getNextExecutingRulesWithParser(rules, CronExpressionParser),
+	);
+
+	return Object.fromEntries(
+		rules.map((rule, index) => {
+			const nextScheduledTime = getNextScheduledTime(rule.cronSchedule, now);
+			const nextTime =
+				nextMoveTime != null && nextRuleIndices.has(index)
+					? nextMoveTime
+					: nextScheduledTime;
+
+			return [rule.id, nextTime];
+		}),
+	);
+}
 
 async function updateStatus(): Promise<void> {
 	const tabs = await browser.tabs.query({ currentWindow: true });
@@ -72,41 +112,36 @@ async function updateStatus(): Promise<void> {
 	const nextRuleNames = nextRuleIndices
 		.map((index) => `Rule ${index + 1}`)
 		.join(", ");
-
-	// Calculate next scheduled time for each individual rule
-	const nextSchedules: Record<string, string> = {};
-	for (const rule of settings.value.rules) {
-		if (!rule.cronSchedule || !rule.cronSchedule.trim()) {
-			nextSchedules[rule.id] = "Not scheduled";
-			continue;
-		}
-
-		try {
-			const interval = CronExpressionParser.parse(rule.cronSchedule, {
-				currentDate: new Date(),
-				strict: false,
-			});
-			const nextDate = interval.next().toDate();
-			nextSchedules[rule.id] = relTime(nextDate);
-		} catch (_err) {
-			nextSchedules[rule.id] = "Invalid schedule";
-		}
-	}
+	const nextMoveTime = alarm?.scheduledTime ? alarm.scheduledTime : null;
 
 	status.value = {
 		actionable: actionableCount,
 		pinned: tabs.filter((t) => t.pinned).length,
 		total: tabs.length,
-		lastMove: mostRecentLastMoveTime
-			? relTime(new Date(mostRecentLastMoveTime))
-			: "Never",
-		nextMove: alarm?.scheduledTime
-			? relTime(new Date(alarm.scheduledTime))
-			: "Unknown",
+		lastMoveTime: mostRecentLastMoveTime
+			? new Date(mostRecentLastMoveTime).getTime()
+			: null,
+		nextMoveTime,
 		nextRules: nextRuleNames || "None",
 	};
-	ruleNextSchedules.value = nextSchedules;
+	ruleNextMoveTimes.value = getRuleNextMoveTimes(
+		settings.value.rules,
+		nextMoveTime,
+	);
 	isLoading.value = false;
+}
+
+async function refreshNextMoveTime(): Promise<void> {
+	const alarm = await browser.alarms.get("moveActionableTabs");
+	const nextMoveTime = alarm?.scheduledTime ? alarm.scheduledTime : null;
+	status.value = {
+		...status.peek(),
+		nextMoveTime,
+	};
+	ruleNextMoveTimes.value = getRuleNextMoveTimes(
+		settings.peek().rules,
+		nextMoveTime,
+	);
 }
 
 async function clearAllActionableTabs(): Promise<void> {
@@ -121,15 +156,6 @@ async function clearAllActionableTabs(): Promise<void> {
 	} catch (err) {
 		console.error("Error clearing actionable tabs:", err);
 	}
-}
-
-function relTime(d: Date): string {
-	const m = Math.round((d.getTime() - Date.now()) / 60000);
-	if (m < -60) return `${Math.round(-m / 60)}h ago`;
-	if (m < 0) return `${-m}m ago`;
-	if (m === 0) return "less than 1m";
-	if (m < 60) return `in ${m}m`;
-	return `in ${Math.round(m / 60)}h`;
 }
 
 let debounceTimeout: number | null = null;
@@ -210,6 +236,9 @@ function moveRule(index: number, direction: "up" | "down"): void {
 }
 
 updateStatus();
+setInterval(() => {
+	void refreshNextMoveTime();
+}, 1_000);
 
 browser.storage.onChanged.addListener(async (changes, areaName) => {
 	if (areaName === "sync" && changes) {
@@ -427,14 +456,22 @@ function App() {
 
 							<div class="rule-last-move">
 								<strong>Last moved:</strong>{" "}
-								{rule.lastMoveTime
-									? relTime(new Date(rule.lastMoveTime))
-									: "Never"}
+								{rule.lastMoveTime ? (
+									<Countdown target={rule.lastMoveTime} />
+								) : (
+									"Never"
+								)}
 							</div>
 
 							<div class="rule-next-schedule">
-								<strong>Next scheduled move:</strong>{" "}
-								{ruleNextSchedules.value[rule.id] || "Unknown"}
+								<strong>Next scheduled move:</strong> {(() => {
+									const nextMoveTime = ruleNextMoveTimes.value[rule.id];
+									return nextMoveTime != null ? (
+										<Countdown target={nextMoveTime} />
+									) : (
+										"Not scheduled"
+									);
+								})()}
 							</div>
 
 							<div class="context-menu-info">
@@ -461,9 +498,21 @@ function App() {
 						<dt>Total</dt>
 						<dd>{status.value.total}</dd>
 						<dt>Last move</dt>
-						<dd>{status.value.lastMove}</dd>
+						<dd>
+							{status.value.lastMoveTime != null ? (
+								<Countdown target={status.value.lastMoveTime} />
+							) : (
+								"Never"
+							)}
+						</dd>
 						<dt>Next move</dt>
-						<dd>{status.value.nextMove}</dd>
+						<dd>
+							{status.value.nextMoveTime != null ? (
+								<Countdown target={status.value.nextMoveTime} />
+							) : (
+								"Unknown"
+							)}
+						</dd>
 						<dt>Next rule(s)</dt>
 						<dd>{status.value.nextRules}</dd>
 					</dl>
