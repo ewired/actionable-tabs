@@ -7,7 +7,7 @@ type CountdownOptions = {
 	seconds?: boolean;
 };
 
-function formatCountdown(
+export function formatCountdown(
 	ms: number,
 	{ preposition = true, seconds = false }: CountdownOptions,
 ): string {

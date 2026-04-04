@@ -30,6 +30,14 @@ export type Settings = {
 	 * the order, so there are controls to re-order the rules.
 	 */
 	rules: Rule[];
+	/**
+	 * Snooze duration in minutes for the global snooze feature
+	 */
+	snoozeMinutes?: number;
+	/**
+	 * ISO timestamp when snooze expires
+	 */
+	snoozeUntil?: string;
 };
 
 export const DEFAULTS = {
@@ -45,6 +53,8 @@ export const DEFAULTS = {
 			showNotifications: true,
 		},
 	],
+	snoozeMinutes: 60,
+	snoozeUntil: undefined,
 } satisfies Settings;
 
 /**

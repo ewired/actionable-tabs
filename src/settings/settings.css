@@ -213,6 +213,16 @@ button.add-rule:hover {
 	color: #000;
 }
 
+button.snooze-active {
+	color: #d00;
+	border-color: #d00;
+}
+
+button.snooze-active:hover {
+	background: #d00;
+	color: #fff;
+}
+
 .context-menu-info {
 	background: #f0f8ff;
 	border: 1px solid #4a90e2;

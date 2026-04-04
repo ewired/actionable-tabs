@@ -4,6 +4,7 @@ import { signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
 import { Countdown } from "../countdown";
+import { SnoozePanel } from "../snooze";
 import {
 	DEFAULTS,
 	getMostRecentLastMoveTime,
@@ -12,7 +13,6 @@ import {
 	type Rule,
 	type Settings,
 } from "../storage";
-
 import { getContextMenuTitle } from "../tab.js";
 
 if (typeof browser === "undefined") globalThis.browser = chrome;
@@ -517,6 +517,11 @@ function App() {
 						<dd>{status.value.nextRules}</dd>
 					</dl>
 				</fieldset>
+
+				<SnoozePanel
+					initialSnoozeMinutes={settings.value.snoozeMinutes}
+					initialSnoozeUntil={settings.value.snoozeUntil}
+				/>
 
 				{settings.value.rules.some((rule) => {
 					if (!rule.cronSchedule || !rule.cronSchedule.trim()) return false;

@@ -1,7 +1,9 @@
 /// <reference types="./ambient.d.ts" />
 
 import { CronExpressionParser } from "cron-parser";
-import { getSettings } from "./storage.js";
+import { formatCountdown } from "./countdown.js";
+import { isSnoozeActive, toggleGlobalSnooze } from "./snooze.js";
+import { DEFAULTS, getSettings } from "./storage.js";
 import {
 	clearAllActionableTabs,
 	getContextMenuTitle,
@@ -221,6 +223,17 @@ async function createContextMenus() {
 		});
 	}
 
+	const snoozeActive = await isSnoozeActive();
+	const snoozeMinutes = settings.snoozeMinutes ?? DEFAULTS.snoozeMinutes;
+
+	browser.contextMenus.create({
+		id: "snooze-global",
+		title: snoozeActive
+			? "Cancel snooze"
+			: `Snooze all rules (${formatCountdown(snoozeMinutes * 60 * 1000, { preposition: false })})`,
+		contexts: ["action"],
+	});
+
 	browser.contextMenus.create({
 		id: "open-settings",
 		title: "Settings",
@@ -268,6 +281,11 @@ browser.contextMenus.onClicked.addListener(async (info, _tab) => {
 	}
 
 	switch (menuItemId) {
+		case "snooze-global": {
+			await toggleGlobalSnooze();
+			await createContextMenus();
+			break;
+		}
 		case "open-settings":
 			browser.runtime.openOptionsPage();
 			break;
@@ -555,6 +573,12 @@ function calculateMissedMoves(cronSchedule, lastMoveTime) {
  */
 async function catchUpMissedRules(rules) {
 	if (!rules || rules.length === 0) {
+		return { rulesUpdated: false, totalMissedMoves: 0, updatedRules: rules };
+	}
+
+	const snoozeActive = await isSnoozeActive();
+	if (snoozeActive) {
+		console.log("Catch-up skipped: snooze is active");
 		return { rulesUpdated: false, totalMissedMoves: 0, updatedRules: rules };
 	}
 

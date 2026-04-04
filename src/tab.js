@@ -1,5 +1,7 @@
 /// <reference types="./ambient.d.ts" />
 
+import { isSnoozeActive } from "./snooze.js";
+
 if (typeof browser === "undefined") globalThis.browser = chrome;
 
 /**
@@ -112,6 +114,10 @@ async function getTargetIndexForActionableTabs(moveDirection) {
  */
 export async function moveActionableTabsForRule(params) {
 	const { queueMode, moveDirection, moveCount = 1, isManual = false } = params;
+
+	if (!isManual && (await isSnoozeActive())) {
+		return null;
+	}
 
 	const actionableTabsData = await getActionableTabsSorted(queueMode);
 
