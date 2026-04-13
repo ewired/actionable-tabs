@@ -226,7 +226,7 @@ function App() {
 	if (isLoading.value) {
 		return (
 			<div>
-				<h1>ACTIONABLE TABS</h1>
+				<h1>Actionable tabs</h1>
 				<div id="settings">
 					<p>Loading settings...</p>
 				</div>
@@ -236,7 +236,7 @@ function App() {
 
 	return (
 		<div>
-			<h1>ACTIONABLE TABS</h1>
+			<h1>Actionable tabs</h1>
 			{saveStatus.value !== "idle" && (
 				<div id="save-status" class={saveStatus.value}>
 					{saveStatus.value === "saving" && "Saving..."}
@@ -496,14 +496,14 @@ function App() {
 						}
 					}}
 				>
-					RESET
+					Reset
 				</button>
 				<button
 					type="button"
 					id="clearActionable"
 					onClick={clearAllActionableTabs}
 				>
-					CLEAR ALL ACTIONABLE TABS
+					Clear all actionable tabs
 				</button>
 			</div>
 		</div>
