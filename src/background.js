@@ -1,16 +1,12 @@
-/// <reference types="./ambient.d.ts" />
-
 import { CronExpressionParser } from "cron-parser";
-import { formatCountdown } from "./countdown.js";
-import { isSnoozeActive, toggleGlobalSnooze } from "./snooze.js";
-import { DEFAULTS, getSettings } from "./storage.js";
+import { formatCountdown } from "./countdown";
+import { isSnoozeActive, toggleGlobalSnooze } from "./snooze";
+import { DEFAULTS, getSettings } from "./storage";
 import {
 	clearAllActionableTabs,
 	getContextMenuTitle,
 	moveActionableTabsForRule,
-} from "./tab.js";
-
-if (typeof browser === "undefined") globalThis.browser = chrome;
+} from "./tab";
 
 const ACTIONABLE_ICON_PATHS = {
 	16: "icons/icon-on-16.png",

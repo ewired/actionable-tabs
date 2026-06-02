@@ -1,4 +1,9 @@
 {
+	"scripts": {
+		"dev": "extension dev",
+		"build": "extension build",
+		"start": "extension start"
+	},
 	"dependencies": {
 		"@preact/signals": "^2.3.2",
 		"@types/webextension-polyfill": "^0.12.4",
@@ -9,6 +14,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.2.6",
+		"extension": "^3.18.1",
 		"knip": "^5.66.2"
 	}
 }

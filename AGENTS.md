@@ -17,6 +17,7 @@ The project is configured to automatically fix most formatting and linting issue
 
 ## Project Structure
 
+- `src/manifest.json` - Extension manifest (source of truth)
 - `src/background.js` - Main browser extension background script
 - `src/settings/` - Extension settings page files
 - `src/icons/` - Extension icons

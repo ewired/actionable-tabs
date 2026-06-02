@@ -4,12 +4,9 @@ Thumbs.db
 
 # Build artifacts
 dist/
-build/
-out/
 
 # Node modules
 node_modules/
 
 # Extension packaging
-web-ext-artifacts/
 .env

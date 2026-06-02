@@ -1,5 +1,3 @@
-/// <reference types="./ambient.d.ts" />
-
 import { useEffect, useState } from "preact/hooks";
 
 type CountdownOptions = {

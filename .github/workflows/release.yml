@@ -3,7 +3,7 @@ name: Release Extension
 on:
     push:
         branches: [main]
-        paths: ["manifest.json"]
+        paths: ["src/manifest.json"]
 
 jobs:
     detect-version-change:
@@ -21,16 +21,16 @@ jobs:
             - name: Check version change
               id: check
               run: |
-                  NEW_VERSION=$(jq -r '.version' manifest.json)
+                  NEW_VERSION=$(jq -r '.version' src/manifest.json)
 
                   if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-                    git checkout ${{ github.event.before }} -- manifest.json 2>/dev/null
-                    OLD_VERSION=$(jq -r '.version' manifest.json 2>/dev/null || echo "")
+                    git checkout ${{ github.event.before }} -- src/manifest.json 2>/dev/null
+                    OLD_VERSION=$(jq -r '.version' src/manifest.json 2>/dev/null || echo "")
                   else
                     OLD_VERSION=""
                   fi
 
-                  git checkout HEAD -- manifest.json
+                  git checkout HEAD -- src/manifest.json
 
                   if [ "$NEW_VERSION" != "$OLD_VERSION" ] && [ -n "$OLD_VERSION" ]; then
                     echo "changed=true" >> $GITHUB_OUTPUT
@@ -62,11 +62,11 @@ jobs:
 
             - name: Build and publish to AMO
               env:
-                  JWT_ISSUER: ${{ secrets.JWT_ISSUER }}
-                  JWT_SECRET: ${{ secrets.JWT_SECRET }}
+                  WEB_EXT_API_KEY: ${{ secrets.JWT_ISSUER }}
+                  WEB_EXT_API_SECRET: ${{ secrets.JWT_SECRET }}
               run: |
                   make clean
-                  make sign
+                  make sign-firefox
 
             - name: Create release and upload assets
               uses: softprops/action-gh-release@v2
@@ -78,6 +78,6 @@ jobs:
 
                       Version bumped from ${{ needs.detect-version-change.outputs.old-version }} to ${{ needs.detect-version-change.outputs.new-version }}.
                   files: |
-                      web-ext-artifacts/*.xpi
+                      dist/*.xpi
                   draft: false
                   prerelease: false

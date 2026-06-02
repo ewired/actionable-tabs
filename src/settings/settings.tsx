@@ -1,5 +1,3 @@
-/// <reference types="@types/webextension-polyfill" />
-
 import { signal } from "@preact/signals";
 import { CronExpressionParser } from "cron-parser";
 import { render } from "preact";
@@ -13,9 +11,8 @@ import {
 	type Rule,
 	type Settings,
 } from "../storage";
-import { getContextMenuTitle } from "../tab.js";
+import { getContextMenuTitle } from "../tab";
 
-if (typeof browser === "undefined") globalThis.browser = chrome;
 type Status = {
 	actionable: number;
 	pinned: number;
@@ -158,7 +155,7 @@ async function clearAllActionableTabs(): Promise<void> {
 	}
 }
 
-let debounceTimeout: number | null = null;
+let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingChanges: Partial<Settings> = {};
 
 function debouncedSave(): void {

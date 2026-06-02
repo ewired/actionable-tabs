@@ -1,32 +1,20 @@
-BUN_BUILD_OPTS = --target=browser --minify --sourcemap=linked
+BROWSER ?= firefox
 -include .env
+export WEB_EXT_API_KEY WEB_EXT_API_SECRET
 
-web-ext-artifacts/webext.zip: out/settings/settings.html out/background.js out/manifest.json
-	cp -r src/icons out/
-	bun x web-ext build -s ./out -n webext.zip -o
+dist/$(BROWSER)/manifest.json: $(shell find src -type f)
+	bun run build -- --browser=$(BROWSER) --zip --zip-source
 
-web-ext-artifacts/source.zip: src/ manifest.json Makefile package.json README.md tsconfig.json LICENSE
-	mkdir -p web-ext-artifacts
-	zip -r $@ $^
-
-out/manifest.json: manifest.json
-	cp manifest.json out/
-
-out/settings/settings.html: $(wildcard src/settings/*) src/storage.ts
-	rm -r out/settings || true
-	bun build src/settings/settings.html --outdir=out/settings $(BUN_BUILD_OPTS)
-
-out/background.js: src/background.js src/storage.ts src/tab.js
-	bun build src/background.js --outdir=out $(BUN_BUILD_OPTS)
-
-.PHONY: clean sign check lint knip fix
+.PHONY: clean sign-firefox check lint knip fix
 clean:
-	rm -rf out web-ext-artifacts
+	rm -rf dist
 
-sign: web-ext-artifacts/webext.zip web-ext-artifacts/source.zip
-	@bun x web-ext sign \
-    	--api-key $(JWT_ISSUER) --api-secret $(JWT_SECRET) \
-        -s out/ --upload-source-code ./web-ext-artifacts/source.zip --channel unlisted
+sign-firefox: dist/firefox/manifest.json
+	SOURCE_ZIP=$$(ls dist/*-source.zip 2>/dev/null | head -1) && \
+	if [ -z "$$SOURCE_ZIP" ]; then echo "Source zip not found" >&2; exit 1; fi && \
+	bun x web-ext sign \
+		-s dist/firefox --upload-source-code "$$SOURCE_ZIP" \
+		-a dist --channel unlisted
 
 check:
 	bunx tsc --noEmit

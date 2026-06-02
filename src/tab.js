@@ -1,8 +1,4 @@
-/// <reference types="./ambient.d.ts" />
-
-import { isSnoozeActive } from "./snooze.js";
-
-if (typeof browser === "undefined") globalThis.browser = chrome;
+import { isSnoozeActive } from "./snooze";
 
 /**
  * Get actionable tabs sorted according to queue mode

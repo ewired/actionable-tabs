@@ -1,11 +1,7 @@
-/// <reference types="./ambient.d.ts" />
-
 import { useSignal } from "@preact/signals";
 import { useEffect } from "preact/hooks";
 import { Countdown } from "./countdown";
 import { DEFAULTS } from "./storage";
-
-if (typeof browser === "undefined") globalThis.browser = chrome;
 
 function getSnoozeRemainingMs(snoozeUntil: unknown): number | undefined {
 	if (typeof snoozeUntil !== "string") return undefined;

@@ -11,10 +11,13 @@
 		"notifications",
 		"sessions"
 	],
-	"background": {
+	"firefox:background": {
 		"scripts": [
 			"background.js"
 		]
+	},
+	"chromium:background": {
+		"service_worker": "background.js"
 	},
 	"action": {
 		"default_icon": {

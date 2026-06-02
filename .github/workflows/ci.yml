@@ -24,10 +24,10 @@ jobs:
             - name: Validate manifest
               run: |
                   # Check if manifest.json is valid JSON
-                  jq empty manifest.json
+                  jq empty src/manifest.json
 
                   # Check version format (semantic versioning)
-                  VERSION=$(jq -r '.version' manifest.json)
+                  VERSION=$(jq -r '.version' src/manifest.json)
                   if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                     echo "Invalid version format: $VERSION"
                     exit 1
@@ -37,11 +37,11 @@ jobs:
             - name: Test build process
               run: |
                   make clean
-                  make web-ext-artifacts/webext.zip
+                  make dist/firefox/manifest.json
 
                   # Verify build artifacts exist
-                  if [ ! -f "web-ext-artifacts/webext.zip" ]; then
-                    echo "Build failed: webext.zip not found"
+                  if [ ! -f "dist/firefox/manifest.json" ]; then
+                    echo "Build failed: manifest.json not found"
                     exit 1
                   fi
 
