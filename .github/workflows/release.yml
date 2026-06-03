@@ -24,13 +24,24 @@ jobs:
                   NEW_VERSION=$(jq -r '.version' src/manifest.json)
 
                   if [ -n "${{ github.event.before }}" ] && [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-                    git checkout ${{ github.event.before }} -- src/manifest.json 2>/dev/null
+                    git checkout ${{ github.event.before }} -- src/manifest.json 2>/dev/null || true
                     OLD_VERSION=$(jq -r '.version' src/manifest.json 2>/dev/null || echo "")
+
+                    # Fallback: old commits may have manifest.json at the root
+                    if [ -z "$OLD_VERSION" ]; then
+                      git checkout ${{ github.event.before }} -- manifest.json 2>/dev/null || true
+                      OLD_VERSION=$(jq -r '.version' manifest.json 2>/dev/null || echo "")
+                    fi
+
+                    # Clean up any stale files from fallback checkout
+                    if [ ! -f "src/manifest.json" ]; then
+                      rm -f manifest.json
+                    fi
                   else
                     OLD_VERSION=""
                   fi
 
-                  git checkout HEAD -- src/manifest.json
+                  git checkout HEAD -- src/manifest.json 2>/dev/null || true
 
                   if [ "$NEW_VERSION" != "$OLD_VERSION" ] && [ -n "$OLD_VERSION" ]; then
                     echo "changed=true" >> $GITHUB_OUTPUT

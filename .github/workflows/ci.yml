@@ -23,11 +23,17 @@ jobs:
 
             - name: Validate manifest
               run: |
+                  # Probe for manifest location (new src/ vs legacy root)
+                  MANIFEST="src/manifest.json"
+                  if [ ! -f "$MANIFEST" ]; then
+                    MANIFEST="manifest.json"
+                  fi
+
                   # Check if manifest.json is valid JSON
-                  jq empty src/manifest.json
+                  jq empty "$MANIFEST"
 
                   # Check version format (semantic versioning)
-                  VERSION=$(jq -r '.version' src/manifest.json)
+                  VERSION=$(jq -r '.version' "$MANIFEST")
                   if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
                     echo "Invalid version format: $VERSION"
                     exit 1
