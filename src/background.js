@@ -129,11 +129,11 @@ async function createAggregatedNotification(executionResults) {
 		// Single rule - show individual notification
 		const { result } = rulesWithNotifications[0];
 		const { moveResults, directionText } = result;
-		const { tab } = moveResults[0];
+		const actuallyMoved = moveResults.filter((r) => r.didMove);
 		const message =
-			moveResults.length === 1
-				? `Pulled "${tab.title}" to ${directionText}`
-				: `Moved ${moveResults.length} actionable tab(s) to ${directionText}`;
+			actuallyMoved.length === 1
+				? `Pulled "${actuallyMoved[0].tab.title}" to ${directionText}`
+				: `Moved ${actuallyMoved.length} actionable tab(s) to ${directionText}`;
 
 		browser.notifications.create({
 			type: "basic",

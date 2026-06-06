@@ -134,38 +134,43 @@ export async function moveActionableTabsForRule(params) {
 	const tabsToMove = actionableTabsData.slice(0, moveCount);
 
 	const moveResults = [];
-	for (let i = 0; i < tabsToMove.length; i++) {
-		const { tabId, tab } = tabsToMove[i];
-		const oldIndex = tab.index;
-		const desiredIndex = targetIndex + i;
 
+	const tabIds = tabsToMove.map(({ tabId }) => tabId);
+	if (tabIds.length > 0) {
 		try {
-			const movedTab = await browser.tabs.move(tabId, { index: desiredIndex });
-			const newIndex = Array.isArray(movedTab)
-				? movedTab[0].index
-				: movedTab.index;
-
-			const didMove = oldIndex !== newIndex;
-			moveResults.push({ tabId, tab, oldIndex, newIndex, didMove });
-
-			if (didMove) {
-				console.log(
-					`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
-				);
-			} else {
-				console.log(
-					`Tab ${tabId} (${tab.title}) already at correct index ${newIndex}`,
-				);
-			}
-		} catch (error) {
-			console.error(`Error moving tab ${tabId}:`, error);
-			moveResults.push({
-				tabId,
-				tab,
-				oldIndex,
-				newIndex: oldIndex,
-				didMove: false,
+			const movedTabs = await browser.tabs.move(tabIds, {
+				index: targetIndex,
 			});
+			const movedTabArray = Array.isArray(movedTabs) ? movedTabs : [movedTabs];
+
+			moveResults.push(
+				...movedTabArray.map((movedTab, i) => {
+					const { tabId, tab } = tabsToMove[i];
+					const oldIndex = tab.index;
+					const newIndex = movedTab.index;
+					console.log(
+						`Moved actionable tab ${tabId} (${tab.title}) from index ${oldIndex} to ${newIndex}`,
+					);
+					return {
+						tabId,
+						tab,
+						oldIndex,
+						newIndex,
+						didMove: oldIndex !== newIndex,
+					};
+				}),
+			);
+		} catch (error) {
+			console.error(`Error moving tabs in batch:`, error);
+			moveResults.push(
+				...tabsToMove.map(({ tabId, tab }) => ({
+					tabId,
+					tab,
+					oldIndex: tab.index,
+					newIndex: tab.index,
+					didMove: false,
+				})),
+			);
 		}
 	}
 
